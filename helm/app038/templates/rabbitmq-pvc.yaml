@@ -1,0 +1,20 @@
+{{- if and .Values.rabbitmq.enabled .Values.rabbitmq.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "app038.fullname" . }}-rabbitmq
+  labels:
+    {{- include "app038.rabbitmq.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.rabbitmq.persistence.accessMode }}
+  {{- if .Values.rabbitmq.persistence.storageClass }}
+  storageClassName: {{ .Values.rabbitmq.persistence.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.rabbitmq.persistence.size }}
+{{- end }}
+

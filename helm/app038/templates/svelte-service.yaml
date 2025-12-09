@@ -1,0 +1,18 @@
+{{- if .Values.svelte.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app038.fullname" . }}-svelte
+  labels:
+    {{- include "app038.svelte.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.svelte.service.type }}
+  ports:
+    - port: {{ .Values.svelte.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "app038.svelte.selectorLabels" . | nindent 4 }}
+{{- end }}
+

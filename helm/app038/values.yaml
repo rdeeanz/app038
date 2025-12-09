@@ -1,0 +1,395 @@
+# Default values for app038
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Vault Configuration
+vault:
+  enabled: true
+  address: "http://vault.vault.svc.cluster.local:8200"
+  authMethod: "kubernetes"  # Options: token, kubernetes, approle
+  role: "laravel-app"
+  secretsPath: "secret/data/app038"
+
+# KEDA Configuration
+keda:
+  enabled: false
+  cooldownPeriod: 300
+  pollingInterval: 30
+  cpuThreshold: 70
+  memoryThreshold: 80
+  requestRateThreshold: 100
+  queueName: "default"
+  queueLengthThreshold: 100
+  queueWorker:
+    minReplicas: 1
+    maxReplicas: 10
+  postgresql:
+    targetConnections: 80
+  redisListName: "queues:default"
+  redisListLengthThreshold: 100
+  customMetrics: []
+
+# Laravel API Configuration
+laravel:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: app038/laravel
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+  
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 9000
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  podAnnotations: {}
+  podSecurityContext:
+    fsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Environment variables from ConfigMap
+  env:
+    - name: APP_ENV
+      value: "production"
+    - name: APP_DEBUG
+      value: "false"
+    - name: LOG_LEVEL
+      value: "info"
+  
+  # Environment variables from Secrets (via secretRef)
+  envFrom:
+    - secretRef:
+        name: app038-secrets
+  
+  # Volume mounts
+  volumeMounts:
+    - name: storage
+      mountPath: /app/storage
+    - name: cache
+      mountPath: /app/bootstrap/cache
+  
+  volumes:
+    - name: storage
+      persistentVolumeClaim:
+        claimName: laravel-storage
+    - name: cache
+      emptyDir: {}
+
+# Svelte Frontend Configuration
+svelte:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: app038/svelte
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  podSecurityContext:
+    fsGroup: 101
+    runAsNonRoot: true
+    runAsUser: 101
+  
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+# Redis Configuration
+redis:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: redis
+    pullPolicy: IfNotPresent
+    tag: "7-alpine"
+  
+  service:
+    type: ClusterIP
+    port: 6379
+    targetPort: 6379
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 8Gi
+  
+  password:
+    secretName: app038-secrets
+    secretKey: redis-password
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  livenessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# RabbitMQ Configuration
+rabbitmq:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: rabbitmq
+    pullPolicy: IfNotPresent
+    tag: "3.12-management-alpine"
+  
+  service:
+    type: ClusterIP
+    port: 5672
+    targetPort: 5672
+    managementPort: 15672
+    managementTargetPort: 15672
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 20Gi
+  
+  credentials:
+    secretName: app038-secrets
+    usernameKey: rabbitmq-username
+    passwordKey: rabbitmq-password
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  livenessProbe:
+    exec:
+      command:
+        - rabbitmq-diagnostics
+        - ping
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  
+  readinessProbe:
+    exec:
+      command:
+        - rabbitmq-diagnostics
+        - ping
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  
+  hosts:
+    - host: app038.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: svelte
+        - path: /api
+          pathType: Prefix
+          service: laravel
+  
+  tls:
+    - secretName: app038-tls
+      hosts:
+        - app038.example.com
+
+# Secrets Configuration
+# Note: In production, create secrets using kubectl or external secret management
+secrets:
+  create: true
+  # These values should be set via --set or from external secret management
+  # Example: helm install --set secrets.dbPassword=xxx
+  dbHost: "postgres-service"
+  dbPort: "5432"
+  dbDatabase: "app038"
+  dbUsername: "postgres"
+  dbPassword: "" # Set via --set or external secrets
+  redisPassword: "" # Set via --set or external secrets
+  rabbitmqUsername: "rabbitmq"
+  rabbitmqPassword: "" # Set via --set or external secrets
+  appKey: "" # Laravel APP_KEY, set via --set or external secrets
+
+# ConfigMap Configuration
+configMap:
+  create: true
+  data:
+    APP_NAME: "App038"
+    APP_ENV: "production"
+    APP_DEBUG: "false"
+    LOG_CHANNEL: "stack"
+    LOG_LEVEL: "info"
+    DB_CONNECTION: "pgsql"
+    CACHE_DRIVER: "redis"
+    SESSION_DRIVER: "redis"
+    QUEUE_CONNECTION: "rabbitmq"
+    BROADCAST_DRIVER: "log"
+
+# Persistent Volumes
+persistence:
+  laravelStorage:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+  
+  redisData:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 8Gi
+  
+  rabbitmqData:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 20Gi
+

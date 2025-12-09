@@ -1,0 +1,42 @@
+{{- if and .Values.svelte.enabled .Values.svelte.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "app038.fullname" . }}-svelte
+  labels:
+    {{- include "app038.svelte.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "app038.fullname" . }}-svelte
+  minReplicas: {{ .Values.svelte.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.svelte.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.svelte.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.svelte.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 1
+        periodSeconds: 15
+      selectPolicy: Max
+{{- end }}
+

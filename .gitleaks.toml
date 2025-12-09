@@ -1,0 +1,69 @@
+# Gitleaks configuration for App038
+title = "App038 Secret Detection"
+
+[extend]
+# Use default rules
+useDefault = true
+
+# Custom rules
+[[rules]]
+id = "app038-custom-secrets"
+description = "App038 specific secret patterns"
+regex = '''(?i)(app038|laravel|sap|erp)(_|\.)?(secret|key|token|password|api[_-]?key)['":\s]*[=:]\s*['"]?([a-zA-Z0-9+/=]{20,})['"]?'''
+
+[[rules]]
+id = "vault-token"
+description = "Vault token detection"
+regex = '''(?i)(vault[_-]?token|hvs\.|hvb\.)[\s:=]+['"]?([a-zA-Z0-9+/=]{20,})['"]?'''
+
+[[rules]]
+id = "database-connection-string"
+description = "Database connection strings with credentials"
+regex = '''(?:postgresql|mysql|mongodb)://[^:]+:[^@]+@[^\s'"]+'''
+
+[[rules]]
+id = "aws-credentials"
+description = "AWS access keys"
+regex = '''AKIA[0-9A-Z]{16}'''
+
+[[rules]]
+id = "private-key"
+description = "Private key detection"
+regex = '''-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----'''
+
+[[rules]]
+id = "jwt-token"
+description = "JWT token detection"
+regex = '''eyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*'''
+
+# Exclude patterns
+[allowlist]
+description = "Allowlist for false positives"
+paths = [
+    '''\.git/''',
+    '''node_modules/''',
+    '''vendor/''',
+    '''\.env\.example''',
+    '''\.env\.template''',
+    '''tests/''',
+    '''\.md$''',
+    '''\.txt$''',
+    '''\.json$''',
+    '''\.yaml$''',
+    '''\.yml$''',
+    '''docker-compose\.yml''',
+    '''\.github/workflows/''',
+]
+
+commits = [
+    '''^Initial commit''',
+    '''^Merge.*''',
+]
+
+regexes = [
+    '''example\.com''',
+    '''test.*password''',
+    '''dummy.*key''',
+    '''placeholder''',
+]
+

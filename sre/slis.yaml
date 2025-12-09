@@ -1,0 +1,199 @@
+# Service Level Indicators (SLIs) for App038
+# Prometheus recording rules for SLI calculation
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app038-slis
+  namespace: monitoring
+  labels:
+    app: app038
+    component: sli
+spec:
+  groups:
+    - name: sli.availability
+      interval: 30s
+      rules:
+        # Laravel API Availability SLI
+        - record: sli:laravel_api:availability:ratio
+          expr: |
+            1 - (
+              sum(rate(http_requests_total{job="laravel-app",status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{job="laravel-app"}[5m]))
+            )
+        
+        # Svelte Frontend Availability SLI
+        - record: sli:svelte_frontend:availability:ratio
+          expr: |
+            1 - (
+              sum(rate(http_requests_total{job="svelte-frontend",status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{job="svelte-frontend"}[5m]))
+            )
+        
+        # PostgreSQL Availability SLI
+        - record: sli:postgresql:availability:ratio
+          expr: |
+            avg(up{job="postgres-exporter"})
+        
+        # Redis Availability SLI
+        - record: sli:redis:availability:ratio
+          expr: |
+            avg(up{job="redis-exporter"})
+        
+        # RabbitMQ Availability SLI
+        - record: sli:rabbitmq:availability:ratio
+          expr: |
+            avg(up{job="rabbitmq-exporter"})
+        
+        # ERP Integration Availability SLI
+        - record: sli:erp_integration:availability:ratio
+          expr: |
+            sum(rate(erp_integration_requests_total{status="success"}[5m]))
+            /
+            sum(rate(erp_integration_requests_total[5m]))
+
+    - name: sli.latency
+      interval: 30s
+      rules:
+        # Laravel API Latency SLI (p99)
+        - record: sli:laravel_api:latency:p99
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{job="laravel-app"}[5m])) by (le)
+            )
+        
+        # Laravel API Latency SLI (p95)
+        - record: sli:laravel_api:latency:p95
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{job="laravel-app"}[5m])) by (le)
+            )
+        
+        # Laravel API Latency SLI (p50)
+        - record: sli:laravel_api:latency:p50
+          expr: |
+            histogram_quantile(0.50,
+              sum(rate(http_request_duration_seconds_bucket{job="laravel-app"}[5m])) by (le)
+            )
+        
+        # Svelte Frontend Latency SLI (p95)
+        - record: sli:svelte_frontend:latency:p95
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{job="svelte-frontend"}[5m])) by (le)
+            )
+        
+        # PostgreSQL Latency SLI (p95)
+        - record: sli:postgresql:latency:p95
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(pg_stat_statements_mean_exec_time_bucket[5m])) by (le)
+            )
+        
+        # Redis Latency SLI (p95)
+        - record: sli:redis:latency:p95
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(redis_commands_duration_seconds_bucket[5m])) by (le)
+            )
+
+    - name: sli.throughput
+      interval: 30s
+      rules:
+        # Laravel API Request Rate
+        - record: sli:laravel_api:request_rate
+          expr: |
+            sum(rate(http_requests_total{job="laravel-app"}[1m]))
+        
+        # Svelte Frontend Request Rate
+        - record: sli:svelte_frontend:request_rate
+          expr: |
+            sum(rate(http_requests_total{job="svelte-frontend"}[1m]))
+        
+        # RabbitMQ Message Processing Rate
+        - record: sli:rabbitmq:processing_rate
+          expr: |
+            sum(rate(rabbitmq_queue_messages_ack_total[1m]))
+
+    - name: sli.error_rate
+      interval: 30s
+      rules:
+        # Laravel API Error Rate
+        - record: sli:laravel_api:error_rate:ratio
+          expr: |
+            sum(rate(http_requests_total{job="laravel-app",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="laravel-app"}[5m]))
+        
+        # ERP Integration Error Rate
+        - record: sli:erp_integration:error_rate:ratio
+          expr: |
+            sum(rate(erp_integration_requests_total{status="error"}[5m]))
+            /
+            sum(rate(erp_integration_requests_total[5m]))
+
+    - name: sli.resource_utilization
+      interval: 30s
+      rules:
+        # CPU Utilization
+        - record: sli:laravel_api:cpu_utilization:ratio
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{pod=~"laravel.*"}[5m]))
+            /
+            sum(container_spec_cpu_quota{pod=~"laravel.*"})
+        
+        # Memory Utilization
+        - record: sli:laravel_api:memory_utilization:ratio
+          expr: |
+            sum(container_memory_usage_bytes{pod=~"laravel.*"})
+            /
+            sum(container_spec_memory_limit_bytes{pod=~"laravel.*"})
+        
+        # Database Connection Pool Utilization
+        - record: sli:postgresql:connection_pool_utilization:ratio
+          expr: |
+            sum(pg_stat_database_numbackends)
+            /
+            sum(pg_stat_database_max_connections)
+        
+        # Redis Cache Hit Rate
+        - record: sli:redis:cache_hit_rate:ratio
+          expr: |
+            sum(rate(redis_keyspace_hits_total[5m]))
+            /
+            (sum(rate(redis_keyspace_hits_total[5m])) + sum(rate(redis_keyspace_misses_total[5m])))
+
+    - name: sli.error_budget
+      interval: 30s
+      rules:
+        # Laravel API Error Budget Remaining (30-day window)
+        - record: sli:laravel_api:error_budget_remaining:ratio
+          expr: |
+            1 - (
+              (1 - sli:laravel_api:availability:ratio)
+              /
+              (1 - 0.999)  # Target: 99.9%
+            )
+        
+        # Error Budget Burn Rate (6-hour window)
+        - record: sli:laravel_api:error_budget_burn_rate:6h
+          expr: |
+            (1 - sli:laravel_api:availability:ratio)
+            /
+            (1 - 0.999)
+            * (30 * 24 * 60)  # 30 days in minutes
+            /
+            (6 * 60)  # 6 hours in minutes
+        
+        # Error Budget Burn Rate (1-hour window)
+        - record: sli:laravel_api:error_budget_burn_rate:1h
+          expr: |
+            (1 - sli:laravel_api:availability:ratio)
+            /
+            (1 - 0.999)
+            * (30 * 24 * 60)  # 30 days in minutes
+            /
+            60  # 1 hour in minutes
+

@@ -1,0 +1,19 @@
+apiVersion: v2
+name: app038
+description: A Helm chart for Laravel API + Svelte frontend with Redis and RabbitMQ
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - laravel
+  - svelte
+  - php
+  - redis
+  - rabbitmq
+  - kubernetes
+maintainers:
+  - name: App038 Team
+home: https://github.com/your-org/app038
+sources:
+  - https://github.com/your-org/app038
+

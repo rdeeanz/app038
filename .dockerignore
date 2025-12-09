@@ -1,0 +1,72 @@
+# Git
+.git
+.gitignore
+.github
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules
+vendor
+npm-debug.log
+yarn-error.log
+
+# Storage and cache
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*
+
+# Testing
+.phpunit.result.cache
+.php_cs.cache
+coverage
+tests
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+
+# Docker files (except the one we're using)
+docker/svelte
+docker-compose.yml
+docker-compose.prod.yml
+Dockerfile
+
+# Build artifacts
+public/hot
+public/build
+public/mix-manifest.json
+
+# CI/CD
+.github
+
+# Terraform
+terraform
+*.tf
+*.tfstate
+*.tfstate.backup
+
+# Helm
+helm
+
+# Scripts (keep only essential)
+scripts/backup
+scripts/deploy-k8s.sh
+
+# Other
+.vagrant
+*.log
+.DS_Store
+Thumbs.db

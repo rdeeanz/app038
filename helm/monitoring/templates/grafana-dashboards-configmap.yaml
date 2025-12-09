@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: grafana
+data:
+  app038-overview.json: |
+{{- .Files.Get "dashboards/app038-overview-dashboard.json" | indent 4 }}
+  app038-slo.json: |
+{{- .Files.Get "dashboards/app038-slo-dashboard.json" | indent 4 }}
+

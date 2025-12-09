@@ -1,0 +1,230 @@
+# Service Level Objectives (SLOs) for App038
+# Based on Google SRE principles
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app038-slos
+  namespace: default
+data:
+  slos.yaml: |
+    # Service Level Objectives
+    services:
+      # Laravel API Service
+      laravel-api:
+        name: Laravel API
+        description: Main application API service
+        
+        # Availability SLO
+        availability:
+          target: 99.9%  # 0.1% error budget (43.2 minutes/month)
+          window: 30d
+          sli:
+            type: ratio
+            good_events: |
+              sum(rate(http_requests_total{job="laravel-app",status!~"5.."}[5m]))
+            total_events: |
+              sum(rate(http_requests_total{job="laravel-app"}[5m]))
+            threshold: 0.999
+        
+        # Latency SLO
+        latency:
+          target: 99th percentile < 500ms
+          window: 30d
+          sli:
+            type: latency
+            metric: |
+              histogram_quantile(0.99,
+                sum(rate(http_request_duration_seconds_bucket{job="laravel-app"}[5m])) by (le)
+              )
+            threshold: 0.5  # 500ms in seconds
+        
+        # Error Rate SLO
+        error_rate:
+          target: < 0.1% errors
+          window: 30d
+          sli:
+            type: ratio
+            good_events: |
+              sum(rate(http_requests_total{job="laravel-app",status!~"5.."}[5m]))
+            total_events: |
+              sum(rate(http_requests_total{job="laravel-app"}[5m]))
+            threshold: 0.999
+        
+        # Throughput SLO
+        throughput:
+          target: > 1000 requests/second
+          window: 1h
+          sli:
+            type: threshold
+            metric: |
+              sum(rate(http_requests_total{job="laravel-app"}[1m]))
+            threshold: 1000
+      
+      # Svelte Frontend Service
+      svelte-frontend:
+        name: Svelte Frontend
+        description: Frontend application service
+        
+        availability:
+          target: 99.95%  # 0.05% error budget (21.6 minutes/month)
+          window: 30d
+          sli:
+            type: ratio
+            good_events: |
+              sum(rate(http_requests_total{job="svelte-frontend",status!~"5.."}[5m]))
+            total_events: |
+              sum(rate(http_requests_total{job="svelte-frontend"}[5m]))
+            threshold: 0.9995
+        
+        latency:
+          target: 95th percentile < 200ms
+          window: 30d
+          sli:
+            type: latency
+            metric: |
+              histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{job="svelte-frontend"}[5m])) by (le)
+              )
+            threshold: 0.2  # 200ms
+      
+      # Database Service
+      postgresql:
+        name: PostgreSQL Database
+        description: Primary database service
+        
+        availability:
+          target: 99.99%  # 0.01% error budget (4.32 minutes/month)
+          window: 30d
+          sli:
+            type: uptime
+            metric: |
+              up{job="postgres-exporter"}
+            threshold: 0.9999
+        
+        latency:
+          target: 95th percentile < 10ms
+          window: 30d
+          sli:
+            type: latency
+            metric: |
+              histogram_quantile(0.95,
+                sum(rate(pg_stat_statements_mean_exec_time_bucket[5m])) by (le)
+              )
+            threshold: 0.01  # 10ms
+        
+        connection_pool:
+          target: < 80% pool utilization
+          window: 1h
+          sli:
+            type: threshold
+            metric: |
+              (pg_stat_database_numbackends / pg_stat_database_max_connections) * 100
+            threshold: 80
+      
+      # Redis Service
+      redis:
+        name: Redis Cache
+        description: Caching and session storage
+        
+        availability:
+          target: 99.95%
+          window: 30d
+          sli:
+            type: uptime
+            metric: |
+              up{job="redis-exporter"}
+            threshold: 0.9995
+        
+        latency:
+          target: 95th percentile < 5ms
+          window: 30d
+          sli:
+            type: latency
+            metric: |
+              histogram_quantile(0.95,
+                sum(rate(redis_commands_duration_seconds_bucket[5m])) by (le)
+              )
+            threshold: 0.005  # 5ms
+        
+        hit_rate:
+          target: > 90% cache hit rate
+          window: 1h
+          sli:
+            type: ratio
+            good_events: |
+              sum(rate(redis_keyspace_hits_total[5m]))
+            total_events: |
+              sum(rate(redis_keyspace_hits_total[5m])) + sum(rate(redis_keyspace_misses_total[5m]))
+            threshold: 0.9
+      
+      # RabbitMQ Service
+      rabbitmq:
+        name: RabbitMQ Queue
+        description: Message queue service
+        
+        availability:
+          target: 99.9%
+          window: 30d
+          sli:
+            type: uptime
+            metric: |
+              up{job="rabbitmq-exporter"}
+            threshold: 0.999
+        
+        queue_depth:
+          target: < 1000 messages per queue
+          window: 5m
+          sli:
+            type: threshold
+            metric: |
+              sum(rabbitmq_queue_messages{queue!="",state="ready"})
+            threshold: 1000
+        
+        processing_rate:
+          target: > 100 messages/second
+          window: 1m
+          sli:
+            type: threshold
+            metric: |
+              sum(rate(rabbitmq_queue_messages_ack_total[1m]))
+            threshold: 100
+      
+      # ERP Integration Service
+      erp-integration:
+        name: ERP Integration
+        description: SAP ERP integration service
+        
+        availability:
+          target: 99.5%  # Lower target due to external dependency
+          window: 30d
+          sli:
+            type: ratio
+            good_events: |
+              sum(rate(erp_integration_requests_total{status="success"}[5m]))
+            total_events: |
+              sum(rate(erp_integration_requests_total[5m]))
+            threshold: 0.995
+        
+        sync_latency:
+          target: 99th percentile < 30s
+          window: 30d
+          sli:
+            type: latency
+            metric: |
+              histogram_quantile(0.99,
+                sum(rate(erp_integration_sync_duration_seconds_bucket[5m])) by (le)
+              )
+            threshold: 30
+        
+        sync_success_rate:
+          target: > 95% successful syncs
+          window: 1h
+          sli:
+            type: ratio
+            good_events: |
+              sum(rate(erp_integration_syncs_total{status="success"}[5m]))
+            total_events: |
+              sum(rate(erp_integration_syncs_total[5m]))
+            threshold: 0.95
+

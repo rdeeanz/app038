@@ -1,0 +1,70 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "app038.fullname" . }}-laravel-keda
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    {{- include "app038.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "app038.fullname" . }}-laravel
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: {{ .Values.laravel.autoscaling.minReplicas | default 3 }}
+  maxReplicaCount: {{ .Values.laravel.autoscaling.maxReplicas | default 10 }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod | default 300 }}
+  pollingInterval: {{ .Values.keda.pollingInterval | default 30 }}
+  triggers:
+    # CPU-based scaling
+    - type: cpu
+      metadata:
+        type: Utilization
+        value: "{{ .Values.keda.cpuThreshold | default 70 }}"
+    
+    # Memory-based scaling
+    - type: memory
+      metadata:
+        type: Utilization
+        value: "{{ .Values.keda.memoryThreshold | default 80 }}"
+    
+    # Request rate-based scaling (Prometheus)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:80
+        metricName: http_requests_per_second
+        threshold: "{{ .Values.keda.requestRateThreshold | default 100 }}"
+        query: |
+          sum(rate(http_requests_total{job="laravel-app"}[1m]))
+    
+    # Queue depth-based scaling (RabbitMQ)
+    - type: rabbitmq
+      metadata:
+        host: {{ .Values.rabbitmq.service.host | default "rabbitmq" }}:{{ .Values.rabbitmq.service.port | default 5672 }}
+        queueName: {{ .Values.keda.queueName | default "default" }}
+        queueLength: "{{ .Values.keda.queueLengthThreshold | default 100 }}"
+        vhostName: {{ .Values.rabbitmq.credentials.vhost | default "/" }}
+        username: {{ .Values.rabbitmq.credentials.username | default "guest" }}
+        passwordFromEnv: RABBITMQ_PASSWORD
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+    {{- if .Values.keda.customMetrics }}
+    {{- range .Values.keda.customMetrics }}
+    - type: {{ .type }}
+      metadata:
+        {{- toYaml .metadata | nindent 8 }}
+    {{- end }}
+    {{- end }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+  namespace: {{ .Values.namespace | default "default" }}
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ include "app038.fullname" . }}-secrets
+      key: RABBITMQ_PASSWORD
+{{- end }}
+

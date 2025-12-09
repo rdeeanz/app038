@@ -1,0 +1,139 @@
+# YAML Mapping Configuration for Order to SAP IDoc (ORDERS05)
+# IDoc structure mapping for order transmission
+
+target: ORDERS05
+
+fields:
+  # Control Record (E1EDK01)
+  E1EDK01:
+    source: root
+    transform:
+      type: nested
+      params:
+        mapping:
+          CIMTYP: 'ORDERS05'
+          DIRECT: '2'  # 2 = Outbound
+          IDOCTYP: 'ORDERS05'
+          MESTYP: 'ORDERS'
+          SNDPRT: 'LS'
+          SNDPRN: '{{app_name}}'
+          RCVPRT: 'LS'
+          RCVPRN: 'SAP'
+          CREDAT:
+            source: order_date
+            transform:
+              type: date
+              params:
+                from: 'Y-m-d'
+                to: 'Ymd'
+          CRETIM:
+            source: order_time
+            default: '{{now_time}}'
+            transform:
+              type: string
+              params:
+                max_length: 6
+          CURCY:
+            source: currency
+            default: 'USD'
+            transform: uppercase
+          HWAER:
+            source: currency
+            default: 'USD'
+            transform: uppercase
+          WKURS: '1.0'
+          ZTERM:
+            source: payment_terms
+            default: '0001'
+            transform:
+              type: string
+              params:
+                max_length: 4
+
+  # Partner Data (E1EDKA1)
+  E1EDKA1:
+    source: root
+    transform:
+      type: array
+      params:
+        items:
+          - PARVW: 'AG'  # Sold-to party
+            PARTN:
+              source: customer_id
+              required: true
+              transform:
+                type: string
+                params:
+                  max_length: 10
+          - PARVW: 'WE'  # Ship-to party
+            PARTN:
+              source: shipping_address.customer_id
+              default: '{{customer_id}}'
+              transform:
+                type: string
+                params:
+                  max_length: 10
+
+  # Item Data (E1EDP01)
+  E1EDP01:
+    source: items
+    required: true
+    transform:
+      type: array
+      params:
+        item_mapping:
+          POSEX:
+            source: '{{index}}'
+            transform:
+              type: number
+              params:
+                decimals: 0
+          MATNR:
+            source: product_id
+            required: true
+            transform:
+              type: string
+              params:
+                max_length: 18
+          MENGE:
+            source: quantity
+            required: true
+            transform:
+              type: number
+              params:
+                decimals: 3
+          MEINS:
+            source: unit
+            default: 'PC'
+            transform: uppercase
+          NETPR:
+            source: unit_price
+            required: true
+            transform:
+              type: number
+              params:
+                decimals: 2
+          NETWR:
+            source: line_total
+            transform:
+              type: number
+              params:
+                decimals: 2
+
+  # Additional Item Data (E1EDP19) - Pricing
+  E1EDP19:
+    source: items
+    transform:
+      type: array
+      params:
+        item_mapping:
+          QUALF: '005'  # Net price
+          BELNR:
+            source: '{{index}}'
+          BETRG:
+            source: unit_price
+            transform:
+              type: number
+              params:
+                decimals: 2
+

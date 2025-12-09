@@ -1,0 +1,83 @@
+{{- if .Values.keda.enabled }}
+# KEDA ScaledObject for Laravel based on RabbitMQ queue depth
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "app038.fullname" . }}-laravel-queue-keda
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    {{- include "app038.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "app038.fullname" . }}-laravel-queue-worker
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: {{ .Values.keda.queueWorker.minReplicas | default 1 }}
+  maxReplicaCount: {{ .Values.keda.queueWorker.maxReplicas | default 10 }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod | default 300 }}
+  pollingInterval: {{ .Values.keda.pollingInterval | default 30 }}
+  triggers:
+    # RabbitMQ queue depth
+    - type: rabbitmq
+      metadata:
+        host: {{ .Values.rabbitmq.service.host | default "rabbitmq" }}:{{ .Values.rabbitmq.service.port | default 5672 }}
+        queueName: {{ .Values.keda.queueName | default "default" }}
+        queueLength: "{{ .Values.keda.queueLengthThreshold | default 100 }}"
+        vhostName: {{ .Values.rabbitmq.credentials.vhost | default "/" }}
+        username: {{ .Values.rabbitmq.credentials.username | default "guest" }}
+        passwordFromEnv: RABBITMQ_PASSWORD
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+---
+# KEDA ScaledObject for Redis-based queue
+{{- if .Values.redis.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "app038.fullname" . }}-laravel-redis-queue-keda
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    {{- include "app038.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "app038.fullname" . }}-laravel-queue-worker
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: {{ .Values.keda.queueWorker.minReplicas | default 1 }}
+  maxReplicaCount: {{ .Values.keda.queueWorker.maxReplicas | default 10 }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod | default 300 }}
+  pollingInterval: {{ .Values.keda.pollingInterval | default 30 }}
+  triggers:
+    - type: redis
+      metadata:
+        address: {{ .Values.redis.service.host | default "redis" }}:{{ .Values.redis.service.port | default 6379 }}
+        listName: {{ .Values.keda.redisListName | default "queues:default" }}
+        listLength: "{{ .Values.keda.redisListLengthThreshold | default 100 }}"
+{{- end }}
+---
+# KEDA ScaledObject for PostgreSQL connection pool
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "app038.fullname" . }}-laravel-db-keda
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    {{- include "app038.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "app038.fullname" . }}-laravel
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: {{ .Values.laravel.autoscaling.minReplicas | default 3 }}
+  maxReplicaCount: {{ .Values.laravel.autoscaling.maxReplicas | default 10 }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod | default 300 }}
+  pollingInterval: {{ .Values.keda.pollingInterval | default 30 }}
+  triggers:
+    - type: postgresql
+      metadata:
+        targetQueryValue: "{{ .Values.keda.postgresql.targetConnections | default 80 }}"
+        connectionStringFromEnv: DATABASE_URL
+        query: |
+          SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'
+{{- end }}
+

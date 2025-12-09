@@ -1,0 +1,466 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_LARAVEL: ${{ github.repository }}/laravel
+  IMAGE_NAME_SVELTE: ${{ github.repository }}/svelte
+  HELM_CHART_PATH: ./helm/app038
+  KUBERNETES_NAMESPACE: app038-production
+
+jobs:
+  # PHP Tests with Matrix Strategy
+  test-php:
+    name: Test PHP (Laravel)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.2', '8.3']
+        dependency-version: ['prefer-stable', 'prefer-lowest']
+        include:
+          - php-version: '8.2'
+            dependency-version: 'prefer-stable'
+          - php-version: '8.3'
+            dependency-version: 'prefer-stable'
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: app038_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_pgsql, pgsql, redis, intl, zip, mbstring, exif, pcntl, bcmath, opcache
+          coverage: xdebug
+          tools: composer
+      
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+      
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+      
+      - name: Install Composer dependencies
+        run: |
+          composer install --${{ matrix.dependency-version }} --no-interaction --prefer-dist --optimize-autoloader
+      
+      - name: Copy environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      
+      - name: Setup environment variables
+        run: |
+          echo "DB_CONNECTION=pgsql" >> .env
+          echo "DB_HOST=postgres" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "DB_DATABASE=app038_test" >> .env
+          echo "DB_USERNAME=postgres" >> .env
+          echo "DB_PASSWORD=postgres" >> .env
+          echo "REDIS_HOST=redis" >> .env
+          echo "REDIS_PORT=6379" >> .env
+          echo "CACHE_DRIVER=redis" >> .env
+          echo "SESSION_DRIVER=redis" >> .env
+          echo "QUEUE_CONNECTION=sync" >> .env
+      
+      - name: Run database migrations
+        run: php artisan migrate --force
+      
+      - name: Run database seeders
+        run: php artisan db:seed --class=RolePermissionSeeder --force
+      
+      - name: Run PHPUnit tests
+        run: |
+          vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
+        continue-on-error: false
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: php-${{ matrix.php-version }}
+          name: php-${{ matrix.php-version }}
+        continue-on-error: true
+      
+      - name: Run Laravel Pint (Code Style)
+        run: vendor/bin/pint --test
+        continue-on-error: true
+      
+      - name: Run PHPStan (Static Analysis)
+        run: |
+          composer require --dev phpstan/phpstan --no-interaction --quiet || true
+          vendor/bin/phpstan analyse --level=5 --no-progress || true
+        continue-on-error: true
+
+  # Node.js Tests with Matrix Strategy
+  test-node:
+    name: Test Node.js (Svelte)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22']
+        include:
+          - node-version: '20'
+          - node-version: '22'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint
+        run: npm run lint || true
+        continue-on-error: true
+      
+      - name: Run tests (if available)
+        run: npm test || echo "No tests configured"
+        continue-on-error: true
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Check build output
+        run: |
+          if [ ! -d "public/build" ]; then
+            echo "Build output not found!"
+            exit 1
+          fi
+          echo "Build successful"
+
+  # Build and Push Docker Images
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-php, test-node]
+    if: github.event_name != 'pull_request'
+    outputs:
+      laravel-image: ${{ steps.meta-laravel.outputs.tags }}
+      svelte-image: ${{ steps.meta-svelte.outputs.tags }}
+      laravel-digest: ${{ steps.build-laravel.outputs.digest }}
+      svelte-digest: ${{ steps.build-svelte.outputs.digest }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata for Laravel
+        id: meta-laravel
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LARAVEL }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Extract metadata for Svelte
+        id: meta-svelte
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_SVELTE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Laravel image
+        id: build-laravel
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/php/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-laravel.outputs.tags }}
+          labels: ${{ steps.meta-laravel.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+      
+      - name: Build and push Svelte image
+        id: build-svelte
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/svelte/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-svelte.outputs.tags }}
+          labels: ${{ steps.meta-svelte.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+      
+      - name: Image digest Laravel
+        run: echo "Laravel image digest: ${{ steps.build-laravel.outputs.digest }}"
+      
+      - name: Image digest Svelte
+        run: echo "Svelte image digest: ${{ steps.build-svelte.outputs.digest }}"
+
+  # Deploy to Kubernetes using Helm
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://app038.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.13.0'
+      
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+      
+      - name: Set up Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+      
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+      
+      - name: Create or update secrets
+        run: |
+          kubectl create secret generic app038-secrets \
+            --from-literal=DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
+            --from-literal=REDIS_PASSWORD='${{ secrets.REDIS_PASSWORD }}' \
+            --from-literal=RABBITMQ_PASSWORD='${{ secrets.RABBITMQ_PASSWORD }}' \
+            --from-literal=APP_KEY='${{ secrets.APP_KEY }}' \
+            --namespace=${{ env.KUBERNETES_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+      
+      - name: Get previous Helm release revision
+        id: previous-revision
+        run: |
+          if helm list -n ${{ env.KUBERNETES_NAMESPACE }} | grep -q app038; then
+            PREV_REV=$(helm history app038 --namespace ${{ env.KUBERNETES_NAMESPACE }} --output json 2>/dev/null | jq -r '.[0].revision // "0"') || echo "0"
+          else
+            PREV_REV="0"
+          fi
+          echo "revision=$PREV_REV" >> $GITHUB_OUTPUT
+          echo "Previous revision: $PREV_REV"
+        continue-on-error: true
+      
+      - name: Deploy with Helm
+        id: helm-deploy
+        run: |
+          helm upgrade --install app038 ${{ env.HELM_CHART_PATH }} \
+            --namespace ${{ env.KUBERNETES_NAMESPACE }} \
+            --set laravel.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LARAVEL }} \
+            --set laravel.image.tag=${{ github.sha }} \
+            --set svelte.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_SVELTE }} \
+            --set svelte.image.tag=${{ github.sha }} \
+            --set secrets.create=false \
+            --set secrets.dbPassword=${{ secrets.DB_PASSWORD }} \
+            --set secrets.redisPassword=${{ secrets.REDIS_PASSWORD }} \
+            --set secrets.rabbitmqPassword=${{ secrets.RABBITMQ_PASSWORD }} \
+            --set secrets.appKey=${{ secrets.APP_KEY }} \
+            --wait \
+            --timeout 10m \
+            --atomic
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+      
+      - name: Wait for deployment rollout
+        run: |
+          kubectl rollout status deployment/app038-laravel --namespace=${{ env.KUBERNETES_NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/app038-svelte --namespace=${{ env.KUBERNETES_NAMESPACE }} --timeout=5m
+      
+      - name: Run post-deployment tests
+        run: |
+          # Wait for services to be ready
+          sleep 30
+          
+          # Test Laravel health endpoint
+          LARAVEL_POD=$(kubectl get pod -l app.kubernetes.io/component=laravel -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n ${{ env.KUBERNETES_NAMESPACE }} $LARAVEL_POD -- wget --quiet --tries=1 --spider http://localhost/health || exit 1
+          
+          # Test Svelte health endpoint
+          SVELTE_POD=$(kubectl get pod -l app.kubernetes.io/component=svelte -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n ${{ env.KUBERNETES_NAMESPACE }} $SVELTE_POD -- wget --quiet --tries=1 --spider http://localhost/health || exit 1
+      
+      - name: Save deployment info
+        id: deployment-info
+        run: |
+          DEPLOYMENT_REVISION=$(helm list -n ${{ env.KUBERNETES_NAMESPACE }} -o json | jq -r '.[0].revision // "0"')
+          echo "revision=$DEPLOYMENT_REVISION" >> $GITHUB_OUTPUT
+          echo "Deployment revision: $DEPLOYMENT_REVISION"
+
+  # Rollback on failure
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: failure() && (needs.deploy.result == 'failure' || needs.deploy.result == 'cancelled')
+    environment:
+      name: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.13.0'
+      
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+      
+      - name: Set up Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+      
+      - name: Get previous revision
+        id: get-revision
+        run: |
+          if helm list -n ${{ env.KUBERNETES_NAMESPACE }} | grep -q app038; then
+            # Get the second-to-last revision (previous working version)
+            PREV_REV=$(helm history app038 --namespace ${{ env.KUBERNETES_NAMESPACE }} --output json 2>/dev/null | jq -r 'if length > 1 then .[1].revision else .[0].revision end // "0"') || echo "0"
+          else
+            PREV_REV="0"
+          fi
+          echo "revision=$PREV_REV" >> $GITHUB_OUTPUT
+          echo "Previous revision: $PREV_REV"
+        continue-on-error: true
+      
+      - name: Rollback Helm release
+        run: |
+          if [ "${{ steps.get-revision.outputs.revision }}" != "0" ]; then
+            helm rollback app038 ${{ steps.get-revision.outputs.revision }} \
+              --namespace ${{ env.KUBERNETES_NAMESPACE }} \
+              --wait \
+              --timeout 10m
+            echo "✅ Rolled back to revision ${{ steps.get-revision.outputs.revision }}"
+          else
+            echo "⚠️ No previous revision found, skipping rollback"
+          fi
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+      
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "🚨 Deployment failed and was rolled back",
+              "attachments": [{
+                "color": "danger",
+                "text": "Repository: ${{ github.repository }}\nCommit: ${{ github.sha }}\nWorkflow: ${{ github.workflow }}"
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+  # Cleanup job (always runs)
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy, rollback]
+    if: always()
+    
+    steps:
+      - name: Cleanup old images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ env.IMAGE_NAME_LARAVEL }}
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+        continue-on-error: true
+      
+      - name: Cleanup old Svelte images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ env.IMAGE_NAME_SVELTE }}
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+        continue-on-error: true
+

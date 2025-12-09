@@ -1,0 +1,187 @@
+{{- if .Values.laravel.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app038.fullname" . }}-laravel
+  labels:
+    {{- include "app038.laravel.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.laravel.autoscaling.enabled }}
+  replicas: {{ .Values.laravel.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "app038.laravel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.laravel.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "app038.laravel.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "app038.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.laravel.podSecurityContext | nindent 8 }}
+      containers:
+      - name: laravel
+        securityContext:
+          {{- toYaml .Values.laravel.securityContext | nindent 12 }}
+        image: "{{ include "app038.imageRepository" . }}:{{ .Values.laravel.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.laravel.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.laravel.service.targetPort }}
+          protocol: TCP
+        env:
+        {{- range .Values.laravel.env }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+        {{- if .Values.configMap.create }}
+        - name: APP_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: APP_NAME
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: APP_ENV
+        - name: APP_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: APP_DEBUG
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: LOG_LEVEL
+        - name: DB_CONNECTION
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: DB_CONNECTION
+        - name: CACHE_DRIVER
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: CACHE_DRIVER
+        - name: SESSION_DRIVER
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: SESSION_DRIVER
+        - name: QUEUE_CONNECTION
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: QUEUE_CONNECTION
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: REDIS_PORT
+        - name: RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: RABBITMQ_HOST
+        - name: RABBITMQ_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "app038.fullname" . }}-config
+              key: RABBITMQ_PORT
+        {{- end }}
+        {{- if .Values.secrets.create }}
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: DB_PORT
+        - name: DB_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: DB_DATABASE
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: DB_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: REDIS_PASSWORD
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: RABBITMQ_USERNAME
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: RABBITMQ_PASSWORD
+        - name: APP_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "app038.fullname" . }}-secrets
+              key: APP_KEY
+        {{- end }}
+        {{- if .Values.laravel.envFrom }}
+        {{- toYaml .Values.laravel.envFrom | nindent 8 }}
+        {{- end }}
+        {{- if .Values.laravel.volumeMounts }}
+        volumeMounts:
+          {{- toYaml .Values.laravel.volumeMounts | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          {{- toYaml .Values.laravel.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.laravel.readinessProbe | nindent 10 }}
+        resources:
+          {{- toYaml .Values.laravel.resources | nindent 10 }}
+      {{- if .Values.laravel.volumes }}
+      volumes:
+        {{- toYaml .Values.laravel.volumes | nindent 8 }}
+      {{- end }}
+      {{- with .Values.laravel.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.laravel.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.laravel.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+

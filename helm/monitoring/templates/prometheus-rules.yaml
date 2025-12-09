@@ -1,0 +1,136 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app038-slo-rules
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: prometheus
+    release: prometheus
+spec:
+  groups:
+    - name: slo.rules
+      interval: 30s
+      rules:
+        # Availability SLO: 99.9% uptime
+        - record: job:http_requests_total:rate5m
+          expr: sum(rate(http_requests_total[5m])) by (job, instance)
+        
+        - record: job:http_requests_total:errors:rate5m
+          expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (job, instance)
+        
+        - record: job:availability:ratio
+          expr: |
+            1 - (
+              job:http_requests_total:errors:rate5m
+              /
+              job:http_requests_total:rate5m
+            )
+        
+        # Latency SLO: 99th percentile < 500ms
+        - record: job:http_request_duration_seconds:rate5m
+          expr: sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le)
+        
+        - record: job:http_request_duration_seconds:p99
+          expr: histogram_quantile(0.99, job:http_request_duration_seconds:rate5m)
+        
+        # Error Rate SLO: < 0.1% errors
+        - record: job:error_rate:ratio
+          expr: |
+            job:http_requests_total:errors:rate5m
+            /
+            job:http_requests_total:rate5m
+
+    - name: slo.alerts
+      interval: 30s
+      rules:
+        # Availability SLO Violation
+        - alert: AvailabilitySLOViolation
+          expr: |
+            (
+              job:availability:ratio < 0.999
+            ) and (
+              job:http_requests_total:rate5m > 0
+            )
+          for: 5m
+          labels:
+            severity: critical
+            slo: availability
+            team: platform
+          annotations:
+            summary: "Availability SLO violation for {{ $labels.job }}"
+            description: |
+              Availability is {{ $value | humanizePercentage }} for {{ $labels.job }}.
+              Target: 99.9% (0.999)
+              Current: {{ $value | humanizePercentage }}
+              Duration: 5 minutes
+            runbook_url: "https://runbooks.example.com/availability-slo"
+            dashboard_url: "https://grafana.app038.local/d/slo-dashboard"
+        
+        # Latency SLO Violation
+        - alert: LatencySLOViolation
+          expr: |
+            (
+              job:http_request_duration_seconds:p99 > 0.5
+            ) and (
+              job:http_requests_total:rate5m > 0
+            )
+          for: 5m
+          labels:
+            severity: critical
+            slo: latency
+            team: platform
+          annotations:
+            summary: "Latency SLO violation for {{ $labels.job }}"
+            description: |
+              99th percentile latency is {{ $value | humanizeDuration }} for {{ $labels.job }}.
+              Target: < 500ms (0.5s)
+              Current: {{ $value | humanizeDuration }}
+              Duration: 5 minutes
+            runbook_url: "https://runbooks.example.com/latency-slo"
+            dashboard_url: "https://grafana.app038.local/d/slo-dashboard"
+        
+        # Error Rate SLO Violation
+        - alert: ErrorRateSLOViolation
+          expr: |
+            (
+              job:error_rate:ratio > 0.001
+            ) and (
+              job:http_requests_total:rate5m > 0
+            )
+          for: 5m
+          labels:
+            severity: critical
+            slo: error_rate
+            team: platform
+          annotations:
+            summary: "Error rate SLO violation for {{ $labels.job }}"
+            description: |
+              Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}.
+              Target: < 0.1% (0.001)
+              Current: {{ $value | humanizePercentage }}
+              Duration: 5 minutes
+            runbook_url: "https://runbooks.example.com/error-rate-slo"
+            dashboard_url: "https://grafana.app038.local/d/slo-dashboard"
+        
+        # Burn Rate Alert (30-day error budget)
+        - alert: HighErrorBudgetBurnRate
+          expr: |
+            (
+              job:error_rate:ratio > 0.002
+            ) and (
+              job:http_requests_total:rate5m > 0
+            )
+          for: 1m
+          labels:
+            severity: warning
+            slo: error_budget
+            team: platform
+          annotations:
+            summary: "High error budget burn rate for {{ $labels.job }}"
+            description: |
+              Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}.
+              This is consuming error budget at 2x the target rate.
+              If this continues, the 30-day error budget will be exhausted.
+            runbook_url: "https://runbooks.example.com/error-budget"
+            dashboard_url: "https://grafana.app038.local/d/slo-dashboard"
+

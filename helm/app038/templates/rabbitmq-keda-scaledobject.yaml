@@ -1,0 +1,31 @@
+{{- if and .Values.rabbitmq.enabled .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "app038.fullname" . }}-rabbitmq-consumer-keda
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    {{- include "app038.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "app038.fullname" . }}-rabbitmq-consumer
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: {{ .Values.keda.rabbitmqConsumer.minReplicas | default 1 }}
+  maxReplicaCount: {{ .Values.keda.rabbitmqConsumer.maxReplicas | default 5 }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod | default 300 }}
+  pollingInterval: {{ .Values.keda.pollingInterval | default 30 }}
+  triggers:
+    # Queue depth-based scaling
+    - type: rabbitmq
+      metadata:
+        host: {{ .Values.rabbitmq.service.host | default "rabbitmq" }}:{{ .Values.rabbitmq.service.port | default 5672 }}
+        queueName: {{ .Values.keda.queueName | default "default" }}
+        queueLength: "{{ .Values.keda.rabbitmqConsumer.queueLengthThreshold | default 50 }}"
+        vhostName: {{ .Values.rabbitmq.credentials.vhost | default "/" }}
+        username: {{ .Values.rabbitmq.credentials.username | default "guest" }}
+        passwordFromEnv: RABBITMQ_PASSWORD
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+{{- end }}
+

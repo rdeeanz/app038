@@ -1,0 +1,116 @@
+# YAML Mapping Configuration for Order to SAP BAPI
+# Specific mapping for BAPI_SALESORDER_CREATEFROMDAT2
+
+target: BAPI_SALESORDER_CREATEFROMDAT2
+
+fields:
+  # ORDER_HEADER_IN structure
+  ORDER_HEADER_IN:
+    source: root
+    transform:
+      type: nested
+      params:
+        mapping:
+          DOC_TYPE:
+            source: document_type
+            default: 'OR'
+            transform: uppercase
+          SALES_ORG:
+            source: sales_organization
+            default: '1000'
+          DISTR_CHAN:
+            source: distribution_channel
+            default: '10'
+          DIVISION:
+            source: division
+            default: '00'
+          PURCH_NO:
+            source: order_number
+            transform:
+              type: string
+              params:
+                max_length: 35
+          PURCH_DATE:
+            source: order_date
+            transform:
+              type: date
+              params:
+                from: 'Y-m-d'
+                to: 'Ymd'
+
+  # ORDER_ITEMS_IN table
+  ORDER_ITEMS_IN:
+    source: items
+    required: true
+    transform:
+      type: array
+      params:
+        item_mapping:
+          ITM_NUMBER:
+            source: '{{index}}'
+            transform:
+              type: number
+              params:
+                decimals: 0
+                multiplier: 10
+          MATERIAL:
+            source: product_id
+            required: true
+            transform:
+              type: string
+              params:
+                max_length: 40
+          PLANT:
+            source: plant
+            default: '1000'
+          TARGET_QTY:
+            source: quantity
+            required: true
+            transform:
+              type: number
+              params:
+                decimals: 3
+          TARGET_QU:
+            source: unit
+            default: 'PC'
+            transform: uppercase
+
+  # ORDER_PARTNERS table
+  ORDER_PARTNERS:
+    source: root
+    transform:
+      type: array
+      params:
+        items:
+          - PARTN_ROLE: 'AG'
+            PARTN_NUMB:
+              source: customer_id
+              required: true
+          - PARTN_ROLE: 'WE'
+            PARTN_NUMB:
+              source: shipping_address.customer_id
+              default: '{{customer_id}}'
+
+  # ORDER_SCHEDULES_IN (optional)
+  ORDER_SCHEDULES_IN:
+    source: items
+    transform:
+      type: array
+      params:
+        item_mapping:
+          ITM_NUMBER:
+            source: '{{index}}'
+            transform:
+              type: number
+              params:
+                decimals: 0
+                multiplier: 10
+          REQ_DATE:
+            source: delivery_date
+            default: '{{order_date}}'
+            transform:
+              type: date
+              params:
+                from: 'Y-m-d'
+                to: 'Ymd'
+

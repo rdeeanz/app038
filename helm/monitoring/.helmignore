@@ -1,0 +1,8 @@
+charts/
+Chart.lock
+*.tgz
+*.tar.gz
+*.md
+!README.md
+!MONITORING_GUIDE.md
+

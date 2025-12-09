@@ -1,0 +1,72 @@
+name: Quick CI/CD (PR Only)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  # Quick tests for PRs
+  test:
+    name: Quick Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-type: [php, node]
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: app038_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: PHP Tests
+        if: matrix.test-type == 'php'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_pgsql, pgsql, redis
+          tools: composer
+      
+      - name: Install PHP dependencies
+        if: matrix.test-type == 'php'
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+          echo "DB_CONNECTION=pgsql" >> .env
+          echo "DB_HOST=postgres" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "DB_DATABASE=app038_test" >> .env
+          echo "DB_USERNAME=postgres" >> .env
+          echo "DB_PASSWORD=postgres" >> .env
+          php artisan migrate --force
+          vendor/bin/phpunit
+      
+      - name: Node Tests
+        if: matrix.test-type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install Node dependencies and build
+        if: matrix.test-type == 'node'
+        run: |
+          npm ci
+          npm run build
+

@@ -1,0 +1,185 @@
+# YAML Mapping Configuration for Order to SAP Transformation
+# This file defines how order data from the application is mapped to SAP format
+
+# Target entity/object name
+target: SalesOrder
+
+# Field mappings
+fields:
+  # Order Header Fields
+  SalesDocument:
+    source: order_number
+    required: true
+    transform:
+      type: string
+      params:
+        max_length: 10
+        pad:
+          length: 10
+          string: '0'
+          type: left
+
+  DocumentType:
+    source: document_type
+    default: 'OR'
+    transform: uppercase
+
+  SalesOrganization:
+    source: sales_organization
+    default: '1000'
+    transform:
+      type: string
+      params:
+        max_length: 4
+
+  DistributionChannel:
+    source: distribution_channel
+    default: '10'
+    transform:
+      type: string
+      params:
+        max_length: 2
+
+  Division:
+    source: division
+    default: '00'
+    transform:
+      type: string
+      params:
+        max_length: 2
+
+  # Customer Information
+  SoldToParty:
+    source: customer_id
+    required: true
+    transform:
+      type: string
+      params:
+        max_length: 10
+
+  CustomerName:
+    source: customer_name
+    transform:
+      type: string
+      params:
+        max_length: 40
+
+  # Date Fields
+  DocumentDate:
+    source: order_date
+    required: true
+    transform:
+      type: date
+      params:
+        from: 'Y-m-d'
+        to: 'Ymd'
+
+  # Amount Fields
+  NetValue:
+    source: total_amount
+    required: true
+    transform:
+      type: number
+      params:
+        decimals: 2
+        multiplier: 1
+
+  Currency:
+    source: currency
+    default: 'USD'
+    transform: uppercase
+
+  # Order Items (nested structure)
+  OrderItems:
+    source: items
+    required: true
+    transform:
+      type: nested
+      params:
+        item_mapping:
+          ItemNumber:
+            source: '{{index}}'
+            transform:
+              type: number
+              params:
+                decimals: 0
+          Material:
+            source: product_id
+            required: true
+          Quantity:
+            source: quantity
+            required: true
+            transform:
+              type: number
+              params:
+                decimals: 0
+          Unit:
+            source: unit
+            default: 'PC'
+            transform: uppercase
+          NetPrice:
+            source: unit_price
+            required: true
+            transform:
+              type: number
+              params:
+                decimals: 2
+
+  # Shipping Address
+  ShipToParty:
+    source: shipping_address
+    transform:
+      type: nested
+      params:
+        mapping:
+          Street:
+            source: street
+          City:
+            source: city
+          PostalCode:
+            source: zip
+            transform:
+              type: string
+              params:
+                max_length: 10
+          Country:
+            source: country
+            transform: uppercase
+
+# Global transformations
+transformations:
+  - type: nested
+    target: OrderHeader
+    fields:
+      - SalesDocument
+      - DocumentType
+      - SalesOrganization
+      - DistributionChannel
+      - Division
+      - DocumentDate
+      - NetValue
+      - Currency
+
+  - type: nested
+    target: CustomerData
+    fields:
+      - SoldToParty
+      - CustomerName
+
+# Validation rules
+validation:
+  required_fields:
+    - SalesDocument
+    - SoldToParty
+    - DocumentDate
+    - NetValue
+    - OrderItems
+
+  field_rules:
+    SalesDocument:
+      pattern: '^[A-Z0-9]{1,10}$'
+    Currency:
+      pattern: '^[A-Z]{3}$'
+    NetValue:
+      min: 0
+
