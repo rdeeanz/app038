@@ -6,19 +6,18 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    container_name: app038_laravel
-    restart: unless-stopped
+    restart: always
     environment:
       - APP_ENV=production
       - APP_DEBUG=false
       - DB_CONNECTION=pgsql
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=postgres
+      - DB_PORT=5432
       - DB_DATABASE=${DB_DATABASE}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - CACHE_DRIVER=redis
       - SESSION_DRIVER=redis
@@ -28,10 +27,10 @@ services:
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     volumes:
-      - ./storage:/app/storage
-      - ./bootstrap/cache:/app/bootstrap/cache
+      - ../files/app038/storage:/app/storage
+      - ../files/app038/bootstrap/cache:/app/bootstrap/cache
     networks:
-      - app038_network
+      - dokploy-network
     depends_on:
       - postgres
       - redis
@@ -42,18 +41,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app038-api.rule=Host(`api.yourdomain.com`)"
+      - "traefik.http.routers.app038-api.entrypoints=websecure"
+      - "traefik.http.routers.app038-api.tls.certResolver=letsencrypt"
+      - "traefik.http.services.app038-api.loadbalancer.server.port=80"
 
   # Svelte Frontend
   svelte:
     build:
       context: .
       dockerfile: docker/svelte/Dockerfile
-    container_name: app038_svelte
-    restart: unless-stopped
+    restart: always
     ports:
-      - "80:80"
+      - "80"
     networks:
-      - app038_network
+      - dokploy-network
     depends_on:
       - laravel
     healthcheck:
@@ -62,20 +66,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app038-web.rule=Host(`yourdomain.com`) || Host(`www.yourdomain.com`)"
+      - "traefik.http.routers.app038-web.entrypoints=websecure"
+      - "traefik.http.routers.app038-web.tls.certResolver=letsencrypt"
+      - "traefik.http.services.app038-web.loadbalancer.server.port=80"
 
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: app038_postgres
-    restart: unless-stopped
+    restart: always
     environment:
       - POSTGRES_DB=${DB_DATABASE}
       - POSTGRES_USER=${DB_USERNAME}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../files/app038/postgres:/var/lib/postgresql/data
     networks:
-      - app038_network
+      - dokploy-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
       interval: 10s
@@ -85,13 +94,12 @@ services:
   # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: app038_redis
-    restart: unless-stopped
+    restart: always
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
-      - redis_data:/data
+      - ../files/app038/redis:/data
     networks:
-      - app038_network
+      - dokploy-network
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
@@ -101,28 +109,27 @@ services:
   # RabbitMQ Message Queue
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: app038_rabbitmq
-    restart: unless-stopped
+    restart: always
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
       RABBITMQ_DEFAULT_VHOST: /
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - ../files/app038/rabbitmq:/var/lib/rabbitmq
     networks:
-      - app038_network
+      - dokploy-network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
-
-volumes:
-  postgres_data:
-  redis_data:
-  rabbitmq_data:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app038-rabbitmq.rule=Host(`rabbitmq.yourdomain.com`)"
+      - "traefik.http.routers.app038-rabbitmq.entrypoints=websecure"
+      - "traefik.http.routers.app038-rabbitmq.tls.certResolver=letsencrypt"
+      - "traefik.http.services.app038-rabbitmq.loadbalancer.server.port=15672"
 
 networks:
-  app038_network:
+  dokploy-network:
     external: true
-

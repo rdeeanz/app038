@@ -59,6 +59,37 @@ npm run dev
 
 Visit `http://localhost:8000` in your browser.
 
+## 🚀 Deployment
+
+Untuk deployment ke production, kami menyediakan beberapa opsi:
+
+### Recommended: Dokploy (VPS Hostinger) ⭐
+**Perfect untuk:** VPS Hostinger dengan web UI management, auto SSL, dan Git integration
+- ✅ Setup cepat (30-60 menit)
+- ✅ Web UI untuk management
+- ✅ Auto SSL dengan Let's Encrypt
+- ✅ Git integration untuk auto-deploy
+
+**Quick Start untuk VPS Hostinger:**
+```bash
+# 1. Connect ke VPS (jika belum fix SSH key issue)
+ssh-keygen -R 168.231.118.3
+ssh root@168.231.118.3
+
+# 2. Install Dokploy (lihat DEPLOYMENT_GUIDE.md Step 1)
+# 3. Akses Dokploy UI: http://168.231.118.3:3000
+# 4. Setup project dan deploy
+```
+
+**Panduan Lengkap:** Lihat [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) section **Opsi 0A: VPS Hostinger dengan Dokploy** untuk step-by-step guide lengkap.
+
+### Alternatif Lain:
+- **VPS Hostinger Manual** - Full control, manual setup
+- **Kubernetes** - Production dengan high availability
+- **Free Tier** - Fly.io, Railway, Render (100% gratis)
+
+Lihat [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) untuk semua opsi deployment.
+
 ## Key Configuration Files
 
 - **Sanctum**: `config/sanctum.php` - Configure stateful domains for SPA

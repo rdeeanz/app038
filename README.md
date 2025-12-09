@@ -72,6 +72,21 @@ See [DIRECTORY_STRUCTURE.md](./DIRECTORY_STRUCTURE.md) for a complete overview o
 - [SETUP.md](./SETUP.md) - Complete setup guide
 - [QUICK_START.md](./QUICK_START.md) - Quick reference guide
 - [DIRECTORY_STRUCTURE.md](./DIRECTORY_STRUCTURE.md) - Project structure
+- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - **Complete deployment guide (Dokploy, VPS Hostinger, Kubernetes, Free Tier, dll)**
+- [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md) - Installation guide for dependencies
+- [CONFIGURATION.md](./CONFIGURATION.md) - Configuration guide
+
+## 🚀 Quick Deployment
+
+**Recommended untuk VPS Hostinger:** Gunakan [Dokploy](https://dokploy.com) untuk deployment dengan web UI management, auto SSL, dan Git integration. 
+
+**Quick Start (VPS Hostinger):**
+1. SSH ke VPS: `ssh root@168.231.118.3` (atau IP VPS Anda)
+2. Install Dokploy (lihat [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) Step 1)
+3. Setup project di Dokploy UI: `http://168.231.118.3:3000`
+4. Deploy aplikasi menggunakan `docker-compose.dokploy.yml`
+
+**Panduan Lengkap:** Lihat [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) section **Opsi 0A: VPS Hostinger dengan Dokploy** untuk step-by-step guide lengkap.
 
 ## 🧪 Testing
 

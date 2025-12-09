@@ -2,12 +2,20 @@
 
 Panduan lengkap dan mudah diikuti untuk mendeploy aplikasi App038 ke internet menggunakan standar DevOps best practices.
 
+> **📌 Quick Start untuk VPS Hostinger:** VPS Hostinger Anda (IP: `168.231.118.3`, Hostname: `srv1162366.hstgr.cloud`) sudah terverifikasi dan siap untuk deployment! Spesifikasi: 2 CPUs, 8GB RAM, 100GB Disk, Ubuntu 24.04 LTS - **Sangat cukup untuk production!** Langsung ke [Opsi 0A: VPS Hostinger dengan Dokploy](#-opsi-0a-vps-hostinger-dengan-dokploy-) - ini adalah cara TERMUDAH dan TERCEPAT untuk deployment!
+
 ## 📋 Daftar Isi
 
 1. [Overview Project](#overview-project)
 2. [Prasyarat & Tools](#prasyarat--tools)
 3. [Strategi Deployment](#strategi-deployment)
 4. [Langkah-langkah Deployment (Step-by-Step)](#langkah-langkah-deployment-step-by-step)
+   - [Opsi 0A: VPS Hostinger dengan Dokploy](#-opsi-0a-vps-hostinger-dengan-dokploy-) ⭐ **RECOMMENDED**
+   - [Opsi 0: VPS Hostinger Deployment Manual](#-opsi-0-vps-hostinger-deployment-manual-)
+   - [Opsi 0B: Free Tier Deployment](#-opsi-0b-free-tier-deployment-100-gratis-)
+   - [Opsi 1: Docker Compose Deployment](#-opsi-1-docker-compose-deployment-paling-mudah)
+   - [Opsi 2: Kubernetes Deployment](#-opsi-2-kubernetes-deployment-recommended)
+   - [Opsi 3: Full Infrastructure dengan Terraform](#-opsi-3-full-infrastructure-dengan-terraform-enterprise)
 5. [Post-Deployment](#post-deployment)
 6. [Monitoring & Maintenance](#monitoring--maintenance)
 7. [Troubleshooting](#troubleshooting)
@@ -127,9 +135,40 @@ Panduan lengkap dan mudah diikuti untuk mendeploy aplikasi App038 ke internet me
 
 ## Strategi Deployment
 
-Kami menyediakan **4 opsi deployment** dari yang paling sederhana hingga enterprise:
+Kami menyediakan **5 opsi deployment** dari yang paling sederhana hingga enterprise:
 
-### 🆓 Opsi 0: Free Tier Deployment (GRATIS) ⭐⭐⭐
+### 🚀 Opsi 0A: VPS Hostinger dengan Dokploy (RECOMMENDED untuk VPS) ⭐⭐⭐⭐
+**Cocok untuk:** Production deployment dengan kontrol penuh, budget terbatas, single server deployment dengan UI management
+- ✅ **Kontrol penuh** - Full root access ke server
+- ✅ **Biaya terjangkau** - Mulai dari ~$5-20/bulan
+- ✅ **Setup cepat** - 30-60 menit untuk setup lengkap
+- ✅ **Web UI Management** - Manage aplikasi via web interface
+- ✅ **Auto SSL** - Automatic SSL certificates dengan Let's Encrypt via Traefik
+- ✅ **Git Integration** - Auto-deploy dari GitHub/GitLab/Bitbucket
+- ✅ **Docker Compose Support** - Full Docker Compose support dengan Traefik
+- ✅ **Database Management** - Built-in database management
+- ✅ **Monitoring & Logs** - Built-in monitoring dan log viewer
+- ✅ **Custom domain** - Support custom domain dengan SSL otomatis
+- ⚠️ Single server (tidak high availability)
+- ⚠️ Manual scaling (perlu upgrade VPS untuk scale)
+
+**Rekomendasi:** Jika Anda sudah punya VPS Hostinger dan ingin management yang mudah, gunakan **Opsi 0A (Dokploy)** - lihat section detail di bawah.
+
+### 🖥️ Opsi 0: VPS Hostinger Deployment Manual (Alternatif) ⭐⭐⭐
+**Cocok untuk:** Production deployment dengan kontrol penuh, budget terbatas, single server deployment
+- ✅ **Kontrol penuh** - Full root access ke server
+- ✅ **Biaya terjangkau** - Mulai dari ~$5-20/bulan
+- ✅ **Setup cepat** - 1-2 jam untuk setup lengkap
+- ✅ **Cocok untuk production** - Stable dan reliable
+- ✅ **Docker support** - Full Docker & Docker Compose support
+- ✅ **Custom domain** - Support custom domain dengan SSL
+- ⚠️ Single server (tidak high availability)
+- ⚠️ Manual scaling (perlu upgrade VPS untuk scale)
+- ⚠️ Manual management (tidak ada web UI)
+
+**Rekomendasi:** Jika Anda sudah punya VPS Hostinger dan lebih suka manual setup, gunakan **Opsi 0 (VPS Hostinger Manual)** - lihat section detail di bawah.
+
+### 🆓 Opsi 0B: Free Tier Deployment (GRATIS) ⭐⭐
 **Cocok untuk:** MVP, testing, personal projects, budget-conscious deployments
 - ✅ **100% GRATIS** - Tidak ada biaya bulanan
 - ✅ Setup cepat (30-60 menit)
@@ -145,7 +184,7 @@ Kami menyediakan **4 opsi deployment** dari yang paling sederhana hingga enterpr
 4. **Oracle Cloud Free Tier** - 2 VMs gratis (selamanya), PostgreSQL gratis
 5. **Docker Compose di VPS Gratis** - Oracle Cloud / AWS Free Tier
 
-**Rekomendasi untuk GRATIS:** Mulai dengan **Opsi 0 (Free Tier)** - lihat section detail di bawah.
+**Rekomendasi untuk GRATIS:** Mulai dengan **Opsi 0B (Free Tier)** - lihat section detail di bawah.
 
 ### Opsi 1: Docker Compose (Paling Mudah) ⭐
 **Cocok untuk:** MVP, testing, development environment
@@ -175,14 +214,1983 @@ Kami menyediakan **4 opsi deployment** dari yang paling sederhana hingga enterpr
 - 💰 Biaya: ~$120-250/bulan (AWS EKS + RDS)
 
 **Rekomendasi:** 
-- **Untuk GRATIS:** Gunakan **Opsi 0 (Free Tier Deployment)** - Lihat detail di bawah ⬇️
+- **Untuk VPS Hostinger dengan UI Management:** Gunakan **Opsi 0A (Dokploy)** - Lihat detail di bawah ⬇️ ⭐ **RECOMMENDED**
+- **Untuk VPS Hostinger Manual:** Gunakan **Opsi 0 (VPS Hostinger Manual)** - Lihat detail di bawah ⬇️
+- **Untuk GRATIS:** Gunakan **Opsi 0B (Free Tier Deployment)** - Lihat detail di bawah ⬇️
 - **Untuk Production dengan Budget:** Mulai dengan **Opsi 2 (Kubernetes)** untuk production.
 
 ---
 
 ## Langkah-langkah Deployment (Step-by-Step)
 
-### 🆓 Opsi 0: Free Tier Deployment (100% GRATIS) ⭐⭐⭐
+### 🚀 Opsi 0A: VPS Hostinger dengan Dokploy ⭐⭐⭐⭐
+
+**Perfect untuk:** Production deployment dengan web UI management, auto SSL, dan Git integration
+
+> **🎯 Quick Start untuk VPS Anda:** VPS Hostinger Anda (IP: `168.231.118.3`) sudah terverifikasi dan siap untuk deployment! Spesifikasi: 2 CPUs, 8GB RAM, 100GB Disk, Ubuntu 24.04 LTS - **Sangat cukup untuk production!** Langsung ke [Step 0: Verifikasi VPS Hostinger](#step-0-verifikasi-vps-hostinger-penting---lakukan-sebelum-deployment) untuk memulai.
+
+#### Prasyarat VPS Hostinger
+
+1. **VPS Hostinger sudah aktif** dengan:
+   - OS: Ubuntu 22.04 LTS atau 20.04 LTS (recommended)
+   - Minimum: 2GB RAM, 2 CPU cores, 40GB storage
+   - Recommended: 4GB RAM, 4 CPU cores, 80GB storage untuk production
+   - Root access atau sudo access
+   - IP address publik
+
+2. **Domain name** (opsional tapi recommended):
+   - Domain sudah terdaftar
+   - Akses ke DNS management
+   - A record bisa di-set ke IP VPS
+
+#### ✅ Informasi VPS Hostinger Anda (Sudah Terverifikasi)
+
+Berdasarkan data dari Hostinger API, VPS Anda sudah siap untuk deployment:
+
+- **✅ Status VPS:** Running (Active)
+- **✅ IP Address:** `168.231.118.3`
+- **✅ Hostname:** `srv1162366.hstgr.cloud`
+- **✅ Plan:** KVM 2
+- **✅ CPUs:** 2 cores
+- **✅ RAM:** 8GB (8192 MB) - **Sangat cukup untuk production!**
+- **✅ Disk:** 100GB (102400 MB) - **Cukup untuk aplikasi + data**
+- **✅ OS:** Ubuntu 24.04 LTS
+- **✅ IPv4:** 168.231.118.3
+- **✅ IPv6:** 2a02:4780:59:6452::1
+- **✅ State:** unlocked (siap untuk deployment)
+
+**Catatan:** Spesifikasi VPS Anda sudah sangat baik untuk production deployment dengan Dokploy!
+
+#### Step 0: Verifikasi VPS Hostinger (PENTING - Lakukan Sebelum Deployment)
+
+> **✅ VPS Anda Sudah Terverifikasi!** 
+> - IP: `168.231.118.3`
+> - Status: Running (Active)
+> - Spesifikasi: 2 CPUs, 8GB RAM, 100GB Disk, Ubuntu 24.04 LTS
+> - **Siap untuk deployment!**
+
+**0.1. Cek VPS Hostinger yang Tersedia**
+
+Sebelum memulai deployment, pastikan VPS Hostinger Anda sudah aktif dan siap digunakan:
+
+1. **Login ke Hostinger hPanel:**
+   - Buka https://hpanel.hostinger.com
+   - Login dengan akun Hostinger Anda
+   - Navigate ke **VPS** section
+
+2. **Verifikasi VPS Status:**
+   - Pastikan VPS status: **Active/Running**
+   - Catat **IP Address** VPS (akan digunakan untuk DNS setup)
+   - Catat **Username** dan pastikan Anda punya akses SSH
+
+3. **Cek Spesifikasi VPS:**
+   - Minimum requirement: 2GB RAM, 2 CPU cores, 40GB storage
+   - Recommended untuk production: 4GB RAM, 4 CPU cores, 80GB storage
+   - Jika kurang, pertimbangkan upgrade VPS sebelum deployment
+
+**0.2. Test Koneksi SSH ke VPS**
+
+```bash
+# Test SSH connection
+# Ganti your-vps-ip dengan IP VPS Anda (contoh: 168.231.118.3)
+ssh root@your-vps-ip
+# Atau jika menggunakan username lain
+ssh username@your-vps-ip
+
+# Contoh dengan IP spesifik:
+# ssh root@168.231.118.3
+
+# Jika berhasil, Anda akan masuk ke VPS
+# Test basic commands untuk verifikasi
+whoami        # Harus return: root (atau username Anda)
+hostname      # Menampilkan hostname VPS
+free -h       # Check RAM usage
+df -h         # Check disk space
+uname -a      # Check OS version
+```
+
+**Troubleshooting SSH Connection:**
+
+Jika tidak bisa connect, check:
+
+1. **Host Key Verification Failed (WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED):**
+   
+   **Masalah:** Host key untuk VPS sudah berubah (biasanya setelah VPS di-reinstall atau diubah).
+   
+   **Solusi - Opsi 1 (Recommended):**
+   ```bash
+   # Hapus old host key untuk IP tersebut
+   ssh-keygen -R 168.231.118.3
+   # Atau untuk semua IP
+   ssh-keygen -R [IP_VPS_ANDA]
+   ```
+   
+   **Solusi - Opsi 2 (Manual):**
+   ```bash
+   # Edit known_hosts dan hapus line yang mengandung IP tersebut
+   # Line yang error biasanya ditunjukkan di pesan error
+   # Contoh: "Offending ECDSA key in /Users/fyi/.ssh/known_hosts:3"
+   # Hapus line 3 (atau line yang disebutkan)
+   nano ~/.ssh/known_hosts
+   # Atau menggunakan sed (untuk macOS)
+   sed -i '' '3d' ~/.ssh/known_hosts
+   # Atau untuk Linux
+   sed -i '3d' ~/.ssh/known_hosts
+   ```
+   
+   **Setelah fix, connect lagi:**
+   ```bash
+   ssh root@168.231.118.3
+   # Akan muncul prompt untuk accept new host key
+   # Ketik: yes
+   ```
+   
+   **Catatan:** Ini aman dilakukan jika Anda yakin VPS memang di-reinstall atau diubah. Host key berubah adalah normal setelah VPS di-reinstall.
+
+2. **Firewall blocking SSH:**
+   ```bash
+   # Di VPS (via console atau hPanel)
+   sudo ufw status
+   sudo ufw allow 22/tcp
+   ```
+
+3. **SSH service tidak running:**
+   ```bash
+   # Di VPS
+   sudo systemctl status ssh
+   sudo systemctl start ssh
+   ```
+
+4. **Wrong credentials:**
+   - Pastikan username benar (biasanya `root` untuk VPS Hostinger)
+   - Reset password via Hostinger hPanel jika perlu
+
+5. **IP address blocked:**
+   - Check Hostinger hPanel untuk IP restrictions
+   - Whitelist IP Anda jika ada IP whitelist enabled
+
+**0.3. Verifikasi Port yang Tersedia**
+
+Pastikan port berikut tidak digunakan oleh aplikasi lain:
+- Port 80 (HTTP)
+- Port 443 (HTTPS)
+- Port 3000 (Dokploy UI - bisa diubah)
+- Port 22 (SSH - harus selalu terbuka)
+
+```bash
+# Check port yang sedang digunakan
+sudo netstat -tulpn | grep -E ':(80|443|3000|22)'
+# Atau menggunakan ss
+sudo ss -tulpn | grep -E ':(80|443|3000|22)'
+```
+
+**0.4. Catat Informasi Penting**
+
+**Informasi VPS Anda (Sudah Terverifikasi):**
+- ✅ VPS IP Address: `168.231.118.3`
+- ✅ VPS Hostname: `srv1162366.hstgr.cloud`
+- ✅ VPS Username: `root` (default untuk VPS Hostinger)
+- ✅ VPS Plan: KVM 2 (2 CPUs, 8GB RAM, 100GB Disk)
+- ✅ OS: Ubuntu 24.04 LTS
+- ✅ Domain name (jika ada): `_________________`
+- ✅ DNS Provider: `_________________`
+
+**Quick Connect Command:**
+```bash
+# SSH command dengan IP VPS Anda
+ssh root@168.231.118.3
+
+# Setelah connect, verifikasi informasi:
+whoami        # Harus return: root
+hostname      # Harus return: srv1162366.hstgr.cloud
+uname -a      # Harus show: Ubuntu 24.04
+free -h       # Harus show: ~8GB RAM
+df -h         # Harus show: ~100GB disk
+hostname -I   # Harus show: 168.231.118.3
+```
+
+**Catatan:** Jika mengalami error "REMOTE HOST IDENTIFICATION HAS CHANGED", jalankan:
+```bash
+ssh-keygen -R 168.231.118.3
+# Lalu connect lagi
+ssh root@168.231.118.3
+```
+
+**0.5. Persiapan Domain (Jika Menggunakan Custom Domain)**
+
+Jika Anda menggunakan custom domain, siapkan DNS records berikut di DNS provider:
+
+```
+A Record:
+- Name: @ (atau kosong)
+- Value: [IP VPS Anda]
+- TTL: 3600
+
+A Record untuk www:
+- Name: www
+- Value: [IP VPS Anda]
+- TTL: 3600
+
+A Record untuk api (opsional):
+- Name: api
+- Value: [IP VPS Anda]
+- TTL: 3600
+```
+
+**Catatan:** DNS propagation bisa memakan waktu 5 menit sampai 24 jam. Setup DNS sekarang akan menghemat waktu nanti.
+
+#### Step 1: Install Dokploy di VPS Hostinger
+
+**1.1. Login ke VPS via SSH**
+
+```bash
+# SSH ke VPS Hostinger
+ssh root@your-vps-ip
+# Atau jika menggunakan username lain
+ssh username@your-vps-ip
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+```
+
+**1.2. Install Docker (jika belum terinstall)**
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installations
+docker --version
+docker-compose --version
+```
+
+**1.3. Install Dokploy**
+
+**Metode 1: Install via Git Clone (Recommended)**
+
+```bash
+# Clone Dokploy repository
+git clone https://github.com/dokploy/dokploy.git
+cd dokploy
+
+# Copy environment file
+cp .env.example .env
+
+# Edit environment file (opsional, default sudah cukup)
+# Minimal yang perlu diubah:
+# - PORT (default: 3000) - ubah jika port 3000 sudah digunakan
+# - JWT_SECRET - generate random string untuk security
+nano .env
+
+# Generate JWT_SECRET (jika belum ada)
+# Di terminal lain atau sebelum edit .env:
+JWT_SECRET=$(openssl rand -base64 32)
+echo "JWT_SECRET=$JWT_SECRET" >> .env
+
+# Start Dokploy
+docker-compose up -d
+
+# Wait for Dokploy to start (sekitar 30-60 detik)
+sleep 60
+
+# Check status
+docker-compose ps
+
+# Check logs jika ada masalah
+docker-compose logs -f
+```
+
+**Metode 2: Install via Automated Script (Alternatif)**
+
+Dokploy menyediakan automated installation script:
+
+```bash
+# Download dan run installation script
+curl -fsSL https://get.dokploy.com | sh
+
+# Script akan otomatis:
+# - Install Docker (jika belum ada)
+# - Install Docker Compose
+# - Setup Dokploy
+# - Start services
+
+# Setelah selesai, akses Dokploy di http://your-vps-ip:3000
+```
+
+**Verifikasi Installasi:**
+
+```bash
+# Check Docker containers
+docker ps | grep dokploy
+
+# Check Dokploy network
+docker network ls | grep dokploy
+
+# Check port 3000 listening
+sudo netstat -tulpn | grep 3000
+# Atau
+sudo ss -tulpn | grep 3000
+```
+
+**1.4. Setup Firewall (UFW)**
+
+```bash
+# Install UFW jika belum ada
+sudo apt install ufw -y
+
+# Allow SSH (penting! jangan skip ini)
+sudo ufw allow 22/tcp
+
+# Allow HTTP dan HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Allow Dokploy port (default: 3000, bisa diubah di .env)
+sudo ufw allow 3000/tcp
+
+# Enable firewall
+sudo ufw --force enable
+
+# Check status
+sudo ufw status
+```
+
+**1.5. Akses Dokploy Web UI**
+
+```bash
+# Get VPS IP address
+curl ifconfig.me
+
+# Akses Dokploy di browser:
+# http://168.231.118.3:3000
+# atau jika sudah setup domain:
+# http://dokploy.yourdomain.com:3000
+```
+
+**1.6. Setup Initial Admin User**
+
+1. Buka browser dan akses `http://168.231.118.3:3000`
+   - Jika tidak bisa akses, check firewall dan pastikan port 3000 sudah di-allow
+   - Tunggu beberapa detik jika Dokploy masih starting up
+
+2. **Setup Wizard akan muncul:**
+   - **Create Admin Account:**
+     - Username: (pilih username yang aman)
+     - Email: (email Anda)
+     - Password: (password yang kuat, minimal 8 karakter)
+   - Klik **"Create Account"**
+
+3. **Login dengan credentials yang sudah dibuat:**
+   - Setelah account dibuat, Anda akan otomatis login
+   - Atau login manual dengan username/password yang baru dibuat
+
+**Troubleshooting jika Setup Wizard tidak muncul:**
+```bash
+# Check Dokploy logs
+cd /path/to/dokploy
+docker-compose logs dokploy
+
+# Restart Dokploy
+docker-compose restart dokploy
+
+# Check database connection
+docker-compose exec postgres psql -U dokploy -d dokploy -c "SELECT 1;"
+```
+
+#### Step 2: Setup Project di Dokploy
+
+**2.1. Create New Project**
+
+1. Di Dokploy dashboard, klik **"New Project"**
+2. Isi:
+   - **Name**: `app038`
+   - **Description**: `Laravel 11 + Svelte Application`
+3. Klik **"Create"**
+
+**2.2. Connect GitHub Repository (Recommended)**
+
+1. Di project `app038`, klik **"Settings"** → **"Source"**
+2. Pilih **"GitHub"** (atau GitLab/Bitbucket)
+3. Authorize Dokploy untuk akses repository
+4. Pilih repository: `YOUR_USERNAME/app038`
+5. Pilih branch: `main` (atau branch yang diinginkan)
+6. Klik **"Connect"**
+
+**Atau Manual Upload:**
+
+Jika tidak menggunakan Git, Anda bisa:
+
+1. **Clone Repository Langsung di VPS:**
+   ```bash
+   # SSH ke VPS
+   ssh root@your-vps-ip
+   
+   # Clone repository
+   cd /opt  # atau directory lain yang sesuai
+   git clone https://github.com/YOUR_USERNAME/app038.git
+   cd app038
+   ```
+
+2. **Upload via SCP/SFTP:**
+   ```bash
+   # Dari local machine
+   scp -r /path/to/app038 root@your-vps-ip:/opt/app038
+   ```
+
+3. **Manual Upload via Dokploy UI:**
+   - Di Dokploy, pilih **"Upload Files"** (jika tersedia)
+   - Upload project files sebagai archive (zip/tar.gz)
+   - Extract di VPS
+
+**Catatan:** Metode Git integration lebih recommended karena memudahkan auto-deploy dan version control.
+
+#### Step 3: Setup Docker Compose di Dokploy
+
+**3.1. Create Docker Compose Application**
+
+1. Di project `app038`, klik **"New Application"**
+2. Pilih **"Docker Compose"**
+3. Isi:
+   - **Name**: `app038-production`
+   - **Description**: `Production deployment`
+
+**3.2. Configure Docker Compose File**
+
+1. Di section **"Docker Compose"**, paste isi dari `docker-compose.dokploy.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  laravel:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    restart: always
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=rabbitmq
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+    volumes:
+      - ../files/app038/storage:/app/storage
+      - ../files/app038/bootstrap/cache:/app/bootstrap/cache
+    networks:
+      - dokploy-network
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app038-api.rule=Host(`api.yourdomain.com`)"
+      - "traefik.http.routers.app038-api.entrypoints=websecure"
+      - "traefik.http.routers.app038-api.tls.certResolver=letsencrypt"
+      - "traefik.http.services.app038-api.loadbalancer.server.port=80"
+
+  svelte:
+    build:
+      context: .
+      dockerfile: docker/svelte/Dockerfile
+    restart: always
+    ports:
+      - "80"
+    networks:
+      - dokploy-network
+    depends_on:
+      - laravel
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app038-web.rule=Host(`yourdomain.com`) || Host(`www.yourdomain.com`)"
+      - "traefik.http.routers.app038-web.entrypoints=websecure"
+      - "traefik.http.routers.app038-web.tls.certResolver=letsencrypt"
+      - "traefik.http.services.app038-web.loadbalancer.server.port=80"
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ../files/app038/postgres:/var/lib/postgresql/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ../files/app038/redis:/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - ../files/app038/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app038-rabbitmq.rule=Host(`rabbitmq.yourdomain.com`)"
+      - "traefik.http.routers.app038-rabbitmq.entrypoints=websecure"
+      - "traefik.http.routers.app038-rabbitmq.tls.certResolver=letsencrypt"
+      - "traefik.http.services.app038-rabbitmq.loadbalancer.server.port=15672"
+
+networks:
+  dokploy-network:
+    external: true
+```
+
+**PENTING:** Ganti `yourdomain.com` dengan domain Anda di semua Traefik labels!
+
+**3.3. Configure Environment Variables**
+
+1. Di section **"Environment Variables"** di Dokploy UI (`http://168.231.118.3:3000`), tambahkan variables berikut:
+
+**Environment Variables Wajib (Minimum):**
+```env
+# Application Configuration
+APP_NAME=App038
+APP_ENV=production
+APP_KEY=base64:YOUR_APP_KEY_HERE
+APP_DEBUG=false
+APP_URL=https://yourdomain.com
+# Atau jika belum punya domain: APP_URL=http://168.231.118.3
+
+# Database Configuration
+DB_DATABASE=app038
+DB_USERNAME=postgres
+DB_PASSWORD=your_strong_password_here
+
+# Redis Configuration
+REDIS_PASSWORD=your_redis_password_here
+
+# RabbitMQ Configuration
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=your_rabbitmq_password_here
+```
+
+**Catatan Penting:**
+- Ganti `yourdomain.com` dengan domain Anda (atau gunakan IP `168.231.118.3` jika belum punya domain)
+- Generate strong passwords untuk DB_PASSWORD, REDIS_PASSWORD, dan RABBITMQ_PASSWORD
+- APP_KEY harus di-generate (lihat Step 3.2)
+
+**Environment Variables Tambahan (Recommended):**
+```env
+# Mail Configuration (jika diperlukan)
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@yourdomain.com
+MAIL_FROM_NAME="${APP_NAME}"
+
+# Logging Configuration
+LOG_CHANNEL=stack
+LOG_LEVEL=info
+
+# Session Configuration
+SESSION_LIFETIME=120
+SESSION_DRIVER=redis
+
+# Cache Configuration
+CACHE_DRIVER=redis
+
+# Sanctum Configuration (jika menggunakan API)
+SANCTUM_STATEFUL_DOMAINS=yourdomain.com,www.yourdomain.com
+```
+
+**Cara Generate Strong Passwords:**
+
+```bash
+# Generate password untuk database
+openssl rand -base64 32
+
+# Generate password untuk Redis
+openssl rand -base64 32
+
+# Generate password untuk RabbitMQ
+openssl rand -base64 32
+
+# Generate APP_KEY (sudah dijelaskan di Step 3.2)
+```
+
+**Catatan Penting:**
+- Simpan semua passwords dengan aman (password manager recommended)
+- Jangan commit passwords ke Git
+- Gunakan password yang berbeda untuk setiap service
+- Minimal 32 karakter untuk production passwords
+
+**Generate APP_KEY:**
+
+```bash
+# Opsi 1: Generate di local machine (jika sudah install PHP)
+php artisan key:generate --show
+# Copy output (format: base64:xxxxx) ke APP_KEY di Dokploy
+
+# Opsi 2: Generate di VPS (install PHP temporary)
+# SSH ke VPS
+ssh root@your-vps-ip
+
+# Install PHP CLI (temporary, untuk generate key saja)
+sudo apt install php-cli php-mbstring -y
+
+# Clone atau copy project ke VPS
+cd /tmp
+git clone https://github.com/YOUR_USERNAME/app038.git
+cd app038
+
+# Generate APP_KEY
+php artisan key:generate --show
+# Copy output ke Dokploy environment variables
+
+# Cleanup (opsional)
+sudo apt remove php-cli php-mbstring -y
+
+# Opsi 3: Generate manual (tidak recommended, kurang secure)
+# Gunakan openssl untuk generate random key
+openssl rand -base64 32
+# Tambahkan prefix "base64:" di depan hasil
+# Contoh: base64:YOUR_GENERATED_KEY_HERE
+```
+
+**PENTING:** Simpan APP_KEY dengan aman! Key ini digunakan untuk encrypt session dan data sensitif.
+
+**3.4. Configure Volumes (Opsional)**
+
+Dokploy akan otomatis membuat volumes di `../files/app038/`. Jika perlu custom volumes:
+
+1. Klik **"Advanced"** → **"Volumes"**
+2. Tambahkan volume mounts jika diperlukan
+
+#### Step 4: Setup Domain di Dokploy
+
+**PENTING:** Setup domain di Dokploy SEBELUM deployment untuk memastikan SSL certificates terbit dengan benar.
+
+**4.1. Add Domain untuk Web (Svelte Frontend)**
+
+1. Di application `app038-production`, klik tab **"Domains"** atau **"Settings"** → **"Domains"**
+2. Klik **"Add Domain"** atau **"New Domain"**
+3. Isi form:
+   - **Domain**: `yourdomain.com` (ganti dengan domain Anda)
+   - **Port**: `80` (port internal dari service svelte, bukan port host)
+   - **Service**: `svelte` (nama service dari docker-compose)
+   - **Enable SSL**: ✅ (centang untuk auto SSL)
+4. Klik **"Add"** atau **"Save"**
+
+**4.2. Add Domain untuk www (Opsional tapi Recommended)**
+
+1. Klik **"Add Domain"** lagi
+2. Isi:
+   - **Domain**: `www.yourdomain.com`
+   - **Port**: `80`
+   - **Service**: `svelte`
+   - **Enable SSL**: ✅
+3. Klik **"Add"**
+
+**4.3. Add Domain untuk API (Laravel Backend) - Opsional**
+
+Jika Anda ingin memisahkan API dengan subdomain terpisah:
+
+1. Klik **"Add Domain"** lagi
+2. Isi:
+   - **Domain**: `api.yourdomain.com`
+   - **Port**: `80` (port internal dari service laravel)
+   - **Service**: `laravel`
+   - **Enable SSL**: ✅
+3. Klik **"Add"**
+
+**4.4. Add Domain untuk RabbitMQ Management - Opsional**
+
+Untuk akses RabbitMQ Management UI:
+
+1. Klik **"Add Domain"** lagi
+2. Isi:
+   - **Domain**: `rabbitmq.yourdomain.com`
+   - **Port**: `15672` (port management UI dari service rabbitmq)
+   - **Service**: `rabbitmq`
+   - **Enable SSL**: ✅
+3. Klik **"Add"**
+
+**Catatan Penting:**
+- Dokploy akan otomatis generate SSL certificates via Let's Encrypt untuk semua domain yang ditambahkan
+- Pastikan DNS sudah pointing ke VPS IP sebelum deployment (untuk SSL certificate generation)
+- SSL certificate generation memakan waktu 1-5 menit setelah deployment
+- Jika SSL gagal, check DNS propagation dan pastikan domain sudah pointing ke VPS
+
+**Verifikasi Domain Setup:**
+
+Setelah menambahkan domain, verifikasi di Dokploy UI:
+1. Klik **"Domains"** tab
+2. Pastikan semua domain muncul dengan status **"Active"** atau **"Pending SSL"**
+3. Status akan berubah ke **"Active"** setelah SSL certificate terbit
+
+#### Step 5: Setup DNS Records
+
+**Di DNS provider Anda (Hostinger, Cloudflare, dll):**
+
+1. **A Record untuk domain utama:**
+   ```
+   Type: A
+   Name: @ (atau kosong)
+   Value: 168.231.118.3
+   TTL: 3600 (atau auto)
+   ```
+
+2. **A Record untuk www:**
+   ```
+   Type: A
+   Name: www
+   Value: 168.231.118.3
+   TTL: 3600 (atau auto)
+   ```
+
+3. **A Record untuk api (jika menggunakan subdomain):**
+   ```
+   Type: A
+   Name: api
+   Value: 168.231.118.3
+   TTL: 3600 (atau auto)
+   ```
+
+4. **A Record untuk rabbitmq (jika menggunakan subdomain):**
+   ```
+   Type: A
+   Name: rabbitmq
+   Value: 168.231.118.3
+   TTL: 3600 (atau auto)
+   ```
+
+**Catatan:** Ganti `168.231.118.3` dengan IP VPS Anda jika berbeda.
+
+**Verifikasi DNS:**
+
+```bash
+# Check DNS propagation dari local machine
+dig yourdomain.com
+nslookup yourdomain.com
+
+# Check dari VPS
+ssh root@168.231.118.3
+dig yourdomain.com
+nslookup yourdomain.com
+
+# Check apakah domain pointing ke IP VPS yang benar
+dig +short yourdomain.com
+# Output harus sama dengan: 168.231.118.3
+
+# Test HTTP connection (sebelum SSL)
+curl -I http://yourdomain.com
+# Harus return HTTP response (bisa 301 redirect ke HTTPS jika SSL sudah aktif)
+
+# Tunggu beberapa menit untuk DNS propagate (bisa sampai 24 jam)
+# Biasanya 5-30 menit untuk sebagian besar DNS provider
+```
+
+**Tips DNS Propagation:**
+- Gunakan DNS checker online: https://dnschecker.org
+- Set TTL ke nilai rendah (300-600) sebelum setup untuk faster propagation
+- Setelah setup selesai, bisa naikkan TTL ke 3600 untuk better performance
+
+#### Step 6: Deploy Application
+
+**6.1. Deploy via Dokploy UI**
+
+1. Di application `app038-production`, klik **"Deploy"**
+2. Dokploy akan:
+   - Clone repository (jika menggunakan Git)
+   - Build Docker images
+   - Start containers
+   - Setup Traefik routing
+   - Generate SSL certificates
+3. Tunggu deployment selesai (bisa 5-15 menit tergantung build time)
+4. Monitor progress di **"Deployments"** tab
+
+**6.2. Check Deployment Status**
+
+1. Klik **"Deployments"** tab atau **"Logs"** tab
+2. Monitor deployment progress:
+   - **Status akan berubah:**
+     - `Pending` → `Building` → `Deploying` → `Running` (success)
+     - Atau `Failed` (jika ada error)
+   
+3. **Monitor Logs Real-time:**
+   - Klik pada deployment untuk melihat detailed logs
+   - Logs akan menampilkan:
+     - Docker build progress
+     - Container startup
+     - Health check status
+     - Error messages (jika ada)
+
+4. **Common Deployment Status:**
+   - ✅ **Running**: Deployment berhasil, aplikasi online
+   - ⏳ **Building**: Docker images sedang di-build
+   - ⏳ **Deploying**: Containers sedang di-start
+   - ❌ **Failed**: Ada error, check logs untuk detail
+
+**Troubleshooting Deployment:**
+
+Jika deployment gagal, check:
+1. **Build Errors:**
+   - Check Dockerfile syntax
+   - Verify build context dan paths
+   - Check disk space: `df -h`
+
+2. **Container Startup Errors:**
+   - Check environment variables (semua required vars sudah di-set?)
+   - Check network connectivity (dokploy-network exists?)
+   - Check port conflicts
+
+3. **Health Check Failures:**
+   - Verify health endpoint exists: `/health`
+   - Check application logs
+   - Verify dependencies (database, redis, dll) sudah running
+
+#### Step 7: Setup Database
+
+**7.1. Run Migrations**
+
+Setelah deployment selesai, run migrations:
+
+1. Di Dokploy UI, klik **"Terminal"** tab
+2. Pilih service: `laravel`
+3. Run command:
+
+```bash
+php artisan migrate --force
+```
+
+**7.2. Run Seeders (Opsional)**
+
+```bash
+php artisan db:seed --force
+```
+
+**7.3. Verify Database Connection**
+
+```bash
+php artisan tinker
+# Di dalam tinker:
+DB::connection()->getPdo();
+exit
+```
+
+#### Step 8: Verify Deployment
+
+**8.1. Check Health Endpoint**
+
+```bash
+# Via terminal di Dokploy Terminal tab
+# Pilih service: laravel atau svelte
+curl http://localhost/health
+
+# Expected output: HTTP 200 OK dengan JSON response
+# Contoh: {"status":"ok","timestamp":"..."}
+
+# Atau via browser
+https://yourdomain.com/health
+https://api.yourdomain.com/health  # jika menggunakan subdomain API
+```
+
+**8.2. Check Application Status**
+
+1. **Via Dokploy UI:**
+   - Klik **"Applications"** → `app038-production`
+   - Check semua services status: harus **Running** (green)
+   - Check resource usage (CPU, Memory)
+
+2. **Via Browser:**
+   - Buka: `https://yourdomain.com`
+   - Website harus sudah bisa diakses dengan SSL (HTTPS)
+   - Check SSL certificate: klik lock icon di browser
+   - Test login dan functionality
+
+3. **Via Command Line (SSH ke VPS):**
+   ```bash
+   # Check running containers
+   docker ps | grep app038
+   
+   # Check container logs
+   docker logs app038_laravel --tail 50
+   docker logs app038_svelte --tail 50
+   
+   # Check network connectivity
+   docker exec app038_laravel ping -c 3 postgres
+   docker exec app038_laravel ping -c 3 redis
+   ```
+
+**8.3. Check Logs**
+
+1. **Via Dokploy UI:**
+   - Klik **"Logs"** tab
+   - Pilih service untuk melihat logs:
+     - `laravel`: Application logs
+     - `svelte`: Frontend logs
+     - `postgres`: Database logs
+     - `redis`: Cache logs
+     - `rabbitmq`: Queue logs
+   - Monitor untuk errors, warnings, atau critical messages
+
+2. **Via SSH (Advanced):**
+   ```bash
+   # Real-time logs
+   docker logs -f app038_laravel
+   
+   # Last 100 lines
+   docker logs --tail 100 app038_laravel
+   
+   # Logs dengan timestamp
+   docker logs -f --timestamps app038_laravel
+   ```
+
+**8.4. Verify SSL Certificates**
+
+```bash
+# Check SSL certificate via command line
+openssl s_client -connect yourdomain.com:443 -servername yourdomain.com
+
+# Atau menggunakan curl
+curl -vI https://yourdomain.com
+
+# Expected: Certificate should be valid dan issued by Let's Encrypt
+```
+
+**8.5. Performance Check**
+
+```bash
+# Check response time
+time curl -s https://yourdomain.com/health
+
+# Check database connection
+# Via Dokploy Terminal, pilih service: laravel
+php artisan tinker
+# Di dalam tinker:
+DB::connection()->getPdo();
+Cache::put('test', 'value', 60);
+Cache::get('test');
+exit
+```
+
+**8.6. Final Verification Checklist**
+
+- [ ] ✅ Health endpoint return 200 OK
+- [ ] ✅ Website accessible via HTTPS
+- [ ] ✅ SSL certificate valid (Let's Encrypt)
+- [ ] ✅ All services running (laravel, svelte, postgres, redis, rabbitmq)
+- [ ] ✅ Database connection working
+- [ ] ✅ Cache (Redis) working
+- [ ] ✅ No critical errors in logs
+- [ ] ✅ Application functionality tested (login, dll)
+
+#### Step 9: Setup Auto-Deploy dari Git (Opsional)
+
+**9.1. Enable Webhook**
+
+1. Di application settings, klik **"Settings"** → **"Webhooks"**
+2. Enable **"Auto Deploy on Push"**
+3. Copy webhook URL
+
+**9.2. Setup GitHub Webhook**
+
+1. Go to GitHub repository → **Settings** → **Webhooks**
+2. Click **"Add webhook"**
+3. Paste webhook URL dari Dokploy
+4. Content type: `application/json`
+5. Events: `Just the push event`
+6. Click **"Add webhook"**
+
+Sekarang setiap push ke branch `main` akan otomatis trigger deployment!
+
+#### Step 10: Post-Deployment Setup
+
+**10.1. Setup Queue Workers (jika diperlukan)**
+
+Jika aplikasi menggunakan queue workers, tambahkan service di docker-compose:
+
+```yaml
+queue-worker:
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  restart: always
+  command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+  environment:
+    # Same as laravel service
+  volumes:
+    - ../files/app038/storage:/app/storage
+  networks:
+    - dokploy-network
+  depends_on:
+    - postgres
+    - redis
+    - rabbitmq
+```
+
+**10.2. Setup Scheduled Tasks (Cron)**
+
+Tambahkan service untuk Laravel scheduler:
+
+```yaml
+scheduler:
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  restart: always
+  command: php artisan schedule:work
+  environment:
+    # Same as laravel service
+  volumes:
+    - ../files/app038/storage:/app/storage
+  networks:
+    - dokploy-network
+  depends_on:
+    - postgres
+    - redis
+```
+
+#### Troubleshooting Dokploy
+
+**Issue: Cannot access Dokploy UI**
+
+```bash
+# Check Dokploy container
+cd /path/to/dokploy
+docker-compose ps
+
+# Check logs
+docker-compose logs
+
+# Restart Dokploy
+docker-compose restart
+```
+
+**Issue: Deployment failed**
+
+1. Check logs di **"Deployments"** tab
+2. Common issues:
+   - Build errors: Check Dockerfile
+   - Environment variables missing: Add di Dokploy UI
+   - Port conflicts: Check port configuration
+   - Network issues: Verify `dokploy-network` exists
+
+**Issue: SSL certificate tidak terbit**
+
+1. Verify DNS sudah pointing ke VPS
+2. Check Traefik logs:
+   ```bash
+   docker logs dokploy-traefik
+   ```
+3. Wait 10-30 detik setelah deployment untuk certificate generation
+
+**Issue: Database connection failed**
+
+1. Check PostgreSQL container running
+2. Verify environment variables (DB_HOST, DB_PASSWORD, dll)
+3. Check network connectivity:
+   ```bash
+   docker exec app038_laravel ping postgres
+   ```
+
+#### Performance Optimization untuk Dokploy
+
+**1. Enable Build Cache:**
+
+Di Dokploy settings, enable build cache untuk faster deployments.
+
+**2. Resource Limits:**
+
+Set resource limits untuk containers di docker-compose:
+
+```yaml
+services:
+  laravel:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+```
+
+**3. Database Optimization:**
+
+- Regular VACUUM untuk PostgreSQL
+- Connection pooling
+- Monitor slow queries
+
+#### Security Best Practices untuk Dokploy
+
+1. **✅ Change default Dokploy port** (jika perlu)
+2. **✅ Use strong passwords** untuk semua services
+3. **✅ Enable firewall** (UFW)
+4. **✅ Regular updates:**
+   ```bash
+   cd /path/to/dokploy
+   git pull
+   docker-compose pull
+   docker-compose up -d
+   ```
+5. **✅ Backup volumes** secara berkala
+6. **✅ Monitor logs** untuk suspicious activity
+
+#### Checklist Deployment Dokploy
+
+**Pre-Deployment:**
+- [x] ✅ VPS Hostinger sudah aktif dengan Ubuntu 24.04 LTS (Terverifikasi: srv1162366.hstgr.cloud)
+- [x] ✅ VPS IP address sudah dicatat: `168.231.118.3`
+- [ ] SSH access ke VPS sudah berfungsi (fix host key issue jika perlu: `ssh-keygen -R 168.231.118.3`)
+- [ ] Domain name sudah terdaftar (jika menggunakan custom domain)
+- [ ] DNS provider access sudah tersedia
+- [x] ✅ VPS Spesifikasi: 2 CPUs, 8GB RAM, 100GB Disk (Sangat cukup untuk production!)
+
+**Dokploy Installation:**
+- [ ] Docker dan Docker Compose sudah terinstall
+- [ ] Port 80, 443, 3000 sudah tersedia (check dengan: `sudo ss -tulpn | grep -E ':(80|443|3000|22)'`)
+- [ ] Dokploy sudah terinstall dan running
+- [ ] Dokploy UI sudah bisa diakses di `http://168.231.118.3:3000`
+- [ ] Admin user sudah dibuat
+- [ ] Firewall (UFW) sudah dikonfigurasi (allow: 22, 80, 443, 3000)
+
+**Project Setup:**
+- [ ] Project `app038` sudah dibuat di Dokploy
+- [ ] GitHub repository sudah di-connect (atau manual upload)
+- [ ] Docker Compose file (`docker-compose.dokploy.yml`) sudah dikonfigurasi
+- [ ] Domain names sudah diganti di Traefik labels (ganti `yourdomain.com`)
+
+**Configuration:**
+- [ ] Environment variables sudah di-set (APP_KEY, DB_PASSWORD, dll)
+- [ ] APP_KEY sudah di-generate dan di-set
+- [ ] Database credentials sudah dikonfigurasi
+- [ ] Redis password sudah di-set
+- [ ] RabbitMQ credentials sudah di-set
+- [ ] Mail configuration sudah di-set (jika diperlukan)
+
+**Domain & DNS:**
+- [ ] Domains sudah ditambahkan di Dokploy (yourdomain.com, www.yourdomain.com)
+- [ ] DNS A records sudah dibuat di DNS provider
+- [ ] DNS sudah pointing ke VPS IP: `168.231.118.3`
+- [ ] DNS propagation sudah selesai (verified dengan `dig` atau `nslookup`)
+
+**Deployment:**
+- [ ] Deployment sudah berhasil (status: Running)
+- [ ] Semua containers running (laravel, svelte, postgres, redis, rabbitmq)
+- [ ] No critical errors di deployment logs
+
+**Database:**
+- [ ] Database migrations sudah dijalankan (`php artisan migrate --force`)
+- [ ] Database seeders sudah dijalankan (jika diperlukan)
+- [ ] Database connection sudah terverifikasi
+
+**SSL & Security:**
+- [ ] SSL certificates sudah terbit (Let's Encrypt)
+- [ ] SSL certificates valid (check di browser)
+- [ ] HTTPS redirect sudah berfungsi
+
+**Verification:**
+- [ ] Website sudah bisa diakses via HTTPS: `https://yourdomain.com` (atau `http://168.231.118.3` jika belum setup domain)
+- [ ] Health check endpoint berfungsi: `https://yourdomain.com/health` (atau `http://168.231.118.3/health` jika belum setup domain)
+- [ ] Application functionality tested (login, navigation, dll)
+- [ ] API endpoint accessible (jika menggunakan subdomain API)
+- [ ] RabbitMQ Management UI accessible (jika setup subdomain)
+- [ ] SSL certificate valid (check di browser atau dengan `openssl s_client`)
+- [ ] All containers running (check di Dokploy UI: `http://168.231.118.3:3000` atau `docker ps`)
+
+**Post-Deployment (Opsional):**
+- [ ] Auto-deploy dari Git sudah setup (webhook configured)
+- [ ] Monitoring dan logs sudah dikonfigurasi
+- [ ] Backup strategy sudah direncanakan
+- [ ] Queue workers sudah setup (jika diperlukan)
+- [ ] Scheduled tasks (cron) sudah setup (jika diperlukan)
+
+**✅ Selesai!** Website sudah online di `https://yourdomain.com`
+
+**Quick Verification Commands:**
+
+Setelah deployment selesai, verifikasi dari local machine:
+
+```bash
+# Test health endpoint
+curl https://yourdomain.com/health
+# Expected: HTTP 200 OK dengan response "healthy"
+
+# Test website
+curl -I https://yourdomain.com
+# Expected: HTTP 200 OK atau 301/302 redirect
+
+# Check SSL certificate
+openssl s_client -connect yourdomain.com:443 -servername yourdomain.com | grep "Verify return code"
+# Expected: Verify return code: 0 (ok)
+
+# Atau test langsung dengan IP (jika belum setup domain)
+curl http://168.231.118.3/health
+```
+
+**Next Steps (Recommended):**
+1. **Setup Monitoring:**
+   - Enable monitoring di Dokploy untuk resource usage
+   - Setup alerts untuk high CPU/Memory usage
+   - Monitor application logs untuk errors
+   - Akses Dokploy UI: `http://168.231.118.3:3000`
+
+2. **Configure Backups:**
+   - Setup automated backups untuk database (PostgreSQL)
+   - Backup volumes secara berkala
+   - Store backups di external storage (S3, Google Drive, dll)
+
+3. **Security Hardening:**
+   - Change default Dokploy port (jika perlu)
+   - Setup fail2ban untuk SSH protection
+   - Regular security updates: `apt update && apt upgrade`
+   - Review firewall rules
+
+4. **Performance Optimization:**
+   - Enable OPcache (sudah enabled di Dockerfile)
+   - Setup Redis caching strategy
+   - Monitor slow queries di database
+   - Optimize Nginx configuration
+
+5. **Documentation:**
+   - Document deployment process untuk team
+   - Create runbook untuk common issues
+   - Document credentials dengan aman (password manager)
+
+**Support & Resources:**
+- **Dokploy Documentation:** https://docs.dokploy.com
+- **Hostinger Support:** https://www.hostinger.com/contact
+- **Laravel Documentation:** https://laravel.com/docs
+- **Project Issues:** GitHub Issues di repository
+
+---
+
+### 🖥️ Opsi 0: VPS Hostinger Deployment Manual ⭐⭐⭐
+
+**Perfect untuk:** Production deployment dengan kontrol penuh, budget terbatas, single server deployment
+
+#### Prasyarat VPS Hostinger
+
+1. **VPS Hostinger sudah aktif** dengan:
+   - OS: Ubuntu 22.04 LTS atau 20.04 LTS (recommended)
+   - Minimum: 2GB RAM, 2 CPU cores, 40GB storage
+   - Recommended: 4GB RAM, 4 CPU cores, 80GB storage untuk production
+   - Root access atau sudo access
+   - IP address publik
+
+2. **Domain name** (opsional tapi recommended):
+   - Domain sudah terdaftar
+   - Akses ke DNS management
+   - A record bisa di-set ke IP VPS
+
+#### Step 1: Persiapan VPS Hostinger
+
+**1.1. Login ke VPS via SSH**
+
+```bash
+# SSH ke VPS Hostinger
+ssh root@your-vps-ip
+# Atau jika menggunakan username lain
+ssh username@your-vps-ip
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+```
+
+**1.2. Install Dependencies**
+
+```bash
+# Install tools dasar
+sudo apt install -y \
+    curl \
+    wget \
+    git \
+    unzip \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installations
+docker --version
+docker-compose --version
+```
+
+**1.3. Setup Firewall (UFW)**
+
+```bash
+# Install UFW jika belum ada
+sudo apt install ufw -y
+
+# Allow SSH (penting! jangan skip ini)
+sudo ufw allow 22/tcp
+
+# Allow HTTP dan HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Enable firewall
+sudo ufw --force enable
+
+# Check status
+sudo ufw status
+```
+
+#### Step 2: Clone Repository
+
+```bash
+# Buat directory untuk aplikasi
+sudo mkdir -p /var/www
+cd /var/www
+
+# Clone repository (ganti dengan URL repository Anda)
+git clone https://github.com/YOUR_USERNAME/app038.git
+cd app038
+
+# Atau jika menggunakan private repo, setup SSH key terlebih dahulu
+# ssh-keygen -t ed25519 -C "your-email@example.com"
+# Copy public key ke GitHub/GitLab
+```
+
+#### Step 3: Setup Environment Variables
+
+```bash
+# Copy environment file
+cp .env.example .env
+
+# Edit environment file
+nano .env
+```
+
+**Konfigurasi minimal untuk `.env`:**
+
+```env
+APP_NAME=App038
+APP_ENV=production
+APP_KEY=base64:YOUR_APP_KEY_HERE
+APP_DEBUG=false
+APP_URL=https://yourdomain.com
+
+# Database Configuration (PostgreSQL di Docker)
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_PORT=5432
+DB_DATABASE=app038
+DB_USERNAME=postgres
+DB_PASSWORD=your_strong_password_here
+
+# Redis Configuration
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password_here
+
+# Cache & Session
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=rabbitmq
+
+# RabbitMQ Configuration
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=your_rabbitmq_password_here
+
+# Mail Configuration (sesuaikan dengan provider email Anda)
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@yourdomain.com
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+**Generate APP_KEY:**
+
+```bash
+# Install PHP dan Composer untuk generate key (atau generate di local)
+# Opsi 1: Install PHP di VPS (temporary, untuk generate key saja)
+sudo apt install php-cli php-mbstring -y
+curl -sS https://getcomposer.org/installer | php
+sudo mv composer.phar /usr/local/bin/composer
+
+# Generate APP_KEY
+php artisan key:generate --show
+# Copy output ke .env file
+
+# Opsi 2: Generate di local machine, lalu copy ke VPS
+# php artisan key:generate --show
+```
+
+#### Step 4: Build & Start Docker Services
+
+```bash
+# Buat Docker network (jika belum ada)
+docker network create app038_network || true
+
+# Build dan start semua services
+docker-compose -f docker-compose.prod.yml up -d --build
+
+# Check status
+docker-compose -f docker-compose.prod.yml ps
+
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f
+```
+
+**Troubleshooting jika ada error:**
+
+```bash
+# Check logs untuk service tertentu
+docker-compose -f docker-compose.prod.yml logs laravel
+docker-compose -f docker-compose.prod.yml logs postgres
+docker-compose -f docker-compose.prod.yml logs redis
+
+# Restart service
+docker-compose -f docker-compose.prod.yml restart laravel
+
+# Rebuild jika ada perubahan
+docker-compose -f docker-compose.prod.yml up -d --build --force-recreate
+```
+
+#### Step 5: Setup Database
+
+```bash
+# Tunggu beberapa detik untuk database siap
+sleep 10
+
+# Run migrations
+docker exec -it app038_laravel php artisan migrate --force
+
+# Run seeders (opsional)
+docker exec -it app038_laravel php artisan db:seed --force
+
+# Verify database connection
+docker exec -it app038_laravel php artisan tinker
+# Di dalam tinker:
+# DB::connection()->getPdo();
+# exit
+```
+
+#### Step 6: Setup Nginx Reverse Proxy & SSL
+
+**6.1. Install Nginx (jika belum ada)**
+
+```bash
+sudo apt install nginx -y
+```
+
+**6.2. Create Nginx Configuration**
+
+```bash
+sudo nano /etc/nginx/sites-available/app038
+```
+
+**Isi dengan konfigurasi berikut (ganti `yourdomain.com` dengan domain Anda):**
+
+```nginx
+# HTTP to HTTPS redirect
+server {
+    listen 80;
+    listen [::]:80;
+    server_name yourdomain.com www.yourdomain.com;
+    
+    # Redirect semua HTTP ke HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS Configuration
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name yourdomain.com www.yourdomain.com;
+
+    # SSL Configuration (akan di-setup oleh Certbot)
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Logging
+    access_log /var/log/nginx/app038-access.log;
+    error_log /var/log/nginx/app038-error.log;
+
+    # Client body size
+    client_max_body_size 20M;
+
+    # Proxy to Laravel container
+    location / {
+        proxy_pass http://127.0.0.1:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # WebSocket support (jika diperlukan)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Health check endpoint
+    location /health {
+        proxy_pass http://127.0.0.1:80/health;
+        access_log off;
+    }
+}
+```
+
+**6.3. Enable Site**
+
+```bash
+# Create symlink
+sudo ln -s /etc/nginx/sites-available/app038 /etc/nginx/sites-enabled/
+
+# Test configuration
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+```
+
+**6.4. Setup SSL dengan Let's Encrypt**
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# Get SSL certificate (ganti dengan domain Anda)
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+
+# Follow prompts:
+# - Enter email address
+# - Agree to terms
+# - Choose redirect HTTP to HTTPS (option 2)
+
+# Test auto-renewal
+sudo certbot renew --dry-run
+
+# Certbot akan otomatis update Nginx config dengan SSL
+```
+
+**6.5. Setup Auto-renewal SSL (sudah otomatis, tapi verify)**
+
+```bash
+# Check cron job (sudah otomatis dibuat oleh Certbot)
+sudo systemctl status certbot.timer
+
+# Manual renewal test
+sudo certbot renew --dry-run
+```
+
+#### Step 7: Setup Domain DNS
+
+**Di DNS provider Anda (Hostinger, Cloudflare, dll):**
+
+1. **A Record:**
+   ```
+   Type: A
+   Name: @ (atau kosong)
+   Value: [IP VPS Hostinger Anda]
+   TTL: 3600 (atau auto)
+   ```
+
+2. **A Record untuk www:**
+   ```
+   Type: A
+   Name: www
+   Value: [IP VPS Hostinger Anda]
+   TTL: 3600 (atau auto)
+   ```
+
+**Verifikasi DNS:**
+
+```bash
+# Check DNS propagation
+dig yourdomain.com
+nslookup yourdomain.com
+
+# Tunggu beberapa menit untuk DNS propagate (bisa sampai 24 jam)
+```
+
+#### Step 8: Verify Deployment
+
+```bash
+# Check health endpoint
+curl http://localhost/health
+curl https://yourdomain.com/health
+
+# Check dari browser
+# https://yourdomain.com
+
+# Check logs jika ada error
+docker-compose -f docker-compose.prod.yml logs laravel
+sudo tail -f /var/log/nginx/app038-error.log
+```
+
+#### Step 9: Setup Auto-start on Boot
+
+```bash
+# Docker sudah auto-start, tapi pastikan
+sudo systemctl enable docker
+
+# Nginx sudah auto-start, verify
+sudo systemctl enable nginx
+sudo systemctl status nginx
+
+# Setup auto-start untuk Docker Compose (opsional)
+sudo nano /etc/systemd/system/app038.service
+```
+
+**Isi file service:**
+
+```ini
+[Unit]
+Description=App038 Docker Compose
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/var/www/app038
+ExecStart=/usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
+ExecStop=/usr/local/bin/docker-compose -f docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Enable service
+sudo systemctl daemon-reload
+sudo systemctl enable app038.service
+
+# Test
+sudo systemctl start app038.service
+sudo systemctl status app038.service
+```
+
+#### Step 10: Setup Monitoring & Maintenance
+
+**10.1. Setup Log Rotation**
+
+```bash
+sudo nano /etc/logrotate.d/app038
+```
+
+**Isi:**
+
+```
+/var/www/app038/storage/logs/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 www-data www-data
+    sharedscripts
+    postrotate
+        docker exec app038_laravel php artisan log:clear || true
+    endscript
+}
+```
+
+**10.2. Setup Backup Script**
+
+```bash
+# Buat backup script
+sudo nano /usr/local/bin/app038-backup.sh
+```
+
+**Isi:**
+
+```bash
+#!/bin/bash
+BACKUP_DIR="/var/backups/app038"
+DATE=$(date +%Y%m%d_%H%M%S)
+mkdir -p $BACKUP_DIR
+
+# Backup database
+docker exec app038_postgres pg_dump -U postgres app038 > $BACKUP_DIR/db_$DATE.sql
+
+# Backup storage
+tar -czf $BACKUP_DIR/storage_$DATE.tar.gz -C /var/www/app038 storage
+
+# Keep only last 7 days
+find $BACKUP_DIR -type f -mtime +7 -delete
+
+echo "Backup completed: $DATE"
+```
+
+```bash
+# Make executable
+sudo chmod +x /usr/local/bin/app038-backup.sh
+
+# Add to crontab (daily backup at 2 AM)
+sudo crontab -e
+# Add: 0 2 * * * /usr/local/bin/app038-backup.sh
+```
+
+**10.3. Setup Monitoring (Opsional)**
+
+```bash
+# Install monitoring tools (opsional)
+# Contoh: Netdata untuk real-time monitoring
+bash <(curl -Ss https://my-netdata.io/kickstart.sh)
+# Access: http://your-vps-ip:19999
+```
+
+#### Troubleshooting VPS Hostinger
+
+**Issue: Cannot connect via SSH**
+
+```bash
+# Check firewall
+sudo ufw status
+sudo ufw allow 22/tcp
+
+# Check SSH service
+sudo systemctl status ssh
+```
+
+**Issue: Docker containers tidak start**
+
+```bash
+# Check Docker service
+sudo systemctl status docker
+sudo systemctl restart docker
+
+# Check disk space
+df -h
+
+# Check Docker logs
+docker-compose -f docker-compose.prod.yml logs
+```
+
+**Issue: Nginx 502 Bad Gateway**
+
+```bash
+# Check Laravel container running
+docker ps | grep laravel
+
+# Check Nginx error log
+sudo tail -f /var/log/nginx/app038-error.log
+
+# Restart Laravel container
+docker-compose -f docker-compose.prod.yml restart laravel
+```
+
+**Issue: SSL certificate tidak terbit**
+
+```bash
+# Check domain pointing ke VPS
+dig yourdomain.com
+
+# Check firewall (port 80 dan 443 harus open)
+sudo ufw status
+
+# Manual certbot
+sudo certbot certonly --standalone -d yourdomain.com
+```
+
+**Issue: Database connection failed**
+
+```bash
+# Check PostgreSQL container
+docker ps | grep postgres
+docker logs app038_postgres
+
+# Test connection
+docker exec -it app038_laravel php artisan tinker
+# DB::connection()->getPdo();
+```
+
+#### Performance Optimization untuk VPS Hostinger
+
+**1. Optimize PHP-FPM:**
+
+Edit `docker/php/Dockerfile` atau create custom PHP config:
+
+```ini
+pm = dynamic
+pm.max_children = 20  # Sesuaikan dengan RAM VPS
+pm.start_servers = 5
+pm.min_spare_servers = 5
+pm.max_spare_servers = 10
+```
+
+**2. Enable OPcache (sudah enabled di Dockerfile)**
+
+**3. Setup Redis untuk cache:**
+
+```bash
+# Verify Redis running
+docker exec -it app038_redis redis-cli ping
+```
+
+**4. Optimize Nginx:**
+
+```nginx
+# Di /etc/nginx/nginx.conf
+worker_processes auto;
+worker_connections 1024;
+keepalive_timeout 65;
+gzip on;
+gzip_types text/plain text/css application/json application/javascript;
+```
+
+#### Security Best Practices untuk VPS Hostinger
+
+1. **✅ Firewall sudah setup** (UFW)
+2. **✅ SSL sudah setup** (Let's Encrypt)
+3. **✅ Strong passwords** untuk database dan services
+4. **✅ Regular updates:**
+
+```bash
+# Setup auto-updates (opsional)
+sudo apt install unattended-upgrades -y
+sudo dpkg-reconfigure -plow unattended-upgrades
+```
+
+5. **✅ Fail2Ban (opsional tapi recommended):**
+
+```bash
+sudo apt install fail2ban -y
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+```
+
+6. **✅ Disable root login via SSH (recommended):**
+
+```bash
+# Create new user dengan sudo
+sudo adduser deploy
+sudo usermod -aG sudo deploy
+
+# Setup SSH key untuk user baru
+# Copy public key ke ~/.ssh/authorized_keys
+
+# Disable root login
+sudo nano /etc/ssh/sshd_config
+# Set: PermitRootLogin no
+sudo systemctl restart ssh
+```
+
+#### Checklist Deployment VPS Hostinger
+
+- [ ] VPS Hostinger sudah aktif dengan Ubuntu 22.04/20.04
+- [ ] SSH access sudah berfungsi
+- [ ] Docker dan Docker Compose sudah terinstall
+- [ ] Firewall (UFW) sudah dikonfigurasi
+- [ ] Repository sudah di-clone ke `/var/www/app038`
+- [ ] `.env` file sudah dikonfigurasi dengan benar
+- [ ] APP_KEY sudah di-generate
+- [ ] Docker services sudah running
+- [ ] Database migrations sudah dijalankan
+- [ ] Nginx sudah dikonfigurasi
+- [ ] SSL certificate sudah terbit (Let's Encrypt)
+- [ ] DNS sudah pointing ke VPS IP
+- [ ] Website sudah bisa diakses via HTTPS
+- [ ] Health check endpoint berfungsi
+- [ ] Auto-start on boot sudah dikonfigurasi
+- [ ] Backup script sudah dibuat
+- [ ] Monitoring sudah setup (opsional)
+
+**✅ Selesai!** Website sudah online di `https://yourdomain.com`
+
+**Next Steps:**
+1. Setup monitoring alerts
+2. Configure automated backups
+3. Setup log rotation
+4. Regular security updates
+5. Monitor resource usage
+
+---
+
+### 🆓 Opsi 0B: Free Tier Deployment (100% GRATIS) ⭐⭐
 
 **Perfect untuk:** MVP, testing, personal projects, budget-conscious deployments
 
@@ -562,7 +2570,7 @@ sudo certbot --nginx -d yourdomain.com
 
 ---
 
-### 🎯 Opsi 1: Docker Compose Deployment (Paling Mudah)
+### 🎯 Opsi 1: Docker Compose Deployment (Alternatif VPS)
 
 #### Step 1: Persiapan Server
 
@@ -1490,19 +3498,46 @@ kubectl exec -it deployment/app038-laravel -n app038-production -- \
 
 ## Quick Reference Commands
 
-### Docker Compose
+### VPS Hostinger / Docker Compose
 ```bash
-# Start
+# Start all services
+cd /var/www/app038
 docker-compose -f docker-compose.prod.yml up -d
 
-# Stop
+# Stop all services
 docker-compose -f docker-compose.prod.yml down
 
-# Logs
+# View logs
 docker-compose -f docker-compose.prod.yml logs -f
 
-# Restart
-docker-compose -f docker-compose.prod.yml restart
+# View logs for specific service
+docker-compose -f docker-compose.prod.yml logs -f laravel
+docker-compose -f docker-compose.prod.yml logs -f postgres
+
+# Restart service
+docker-compose -f docker-compose.prod.yml restart laravel
+
+# Rebuild and restart
+docker-compose -f docker-compose.prod.yml up -d --build --force-recreate
+
+# Check status
+docker-compose -f docker-compose.prod.yml ps
+
+# Execute command in container
+docker exec -it app038_laravel php artisan migrate
+docker exec -it app038_laravel php artisan tinker
+docker exec -it app038_laravel bash
+
+# Update code from Git
+cd /var/www/app038
+git pull origin main
+docker-compose -f docker-compose.prod.yml up -d --build
+
+# Backup database
+docker exec app038_postgres pg_dump -U postgres app038 > backup_$(date +%Y%m%d).sql
+
+# Restore database
+docker exec -i app038_postgres psql -U postgres app038 < backup_20240101.sql
 ```
 
 ### Kubernetes
@@ -1548,7 +3583,16 @@ terraform destroy
 
 **🎉 Selamat! Website Anda sekarang sudah online dan dapat diakses di internet! 🚀**
 
-**URL:** `https://app038.yourdomain.com`
+**URL:** 
+- **VPS Hostinger dengan Dokploy:** `https://yourdomain.com` (atau `http://168.231.118.3` jika belum setup domain)
+- **Dokploy UI:** `http://168.231.118.3:3000`
+- Kubernetes: `https://app038.yourdomain.com`
+- Free Tier: `https://app038.fly.dev` atau sesuai platform
+
+**Quick Access untuk VPS Anda:**
+- **SSH:** `ssh root@168.231.118.3`
+- **Dokploy Dashboard:** `http://168.231.118.3:3000`
+- **Website (jika sudah deploy):** `http://168.231.118.3` atau `https://yourdomain.com`
 
 **Next Steps:**
 1. Setup monitoring alerts
@@ -1556,3 +3600,563 @@ terraform destroy
 3. Setup disaster recovery plan
 4. Document runbooks
 5. Train team members
+
+---
+
+## 📝 Catatan Penting untuk VPS Hostinger dengan Dokploy
+
+### ✅ Informasi VPS Hostinger Anda
+
+**VPS Details (Terverifikasi via Hostinger API):**
+- **IP Address:** `168.231.118.3`
+- **Hostname:** `srv1162366.hstgr.cloud`
+- **Plan:** KVM 2
+- **CPUs:** 2 cores
+- **RAM:** 8GB (8192 MB) - **Sangat cukup untuk production!**
+- **Disk:** 100GB (102400 MB) - **Cukup untuk aplikasi + data**
+- **OS:** Ubuntu 24.04 LTS
+- **Status:** Running (Active)
+- **State:** Unlocked (siap untuk deployment)
+
+**Quick Commands:**
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Fix SSH key issue (jika perlu)
+ssh-keygen -R 168.231.118.3
+
+# Akses Dokploy UI
+# http://168.231.118.3:3000
+```
+
+### Langkah-Langkah Selanjutnya Setelah Deployment Berhasil
+
+Setelah aplikasi sudah online di `https://yourdomain.com`, berikut langkah-langkah penting yang harus dilakukan:
+
+#### 1. Setup Automated Backups
+
+**Database Backup (PostgreSQL):**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Buat backup script
+sudo nano /usr/local/bin/app038-backup-db.sh
+```
+
+**Isi script:**
+```bash
+#!/bin/bash
+BACKUP_DIR="/var/backups/app038"
+DATE=$(date +%Y%m%d_%H%M%S)
+mkdir -p $BACKUP_DIR
+
+# Backup database
+docker exec app038_postgres pg_dump -U postgres app038 | gzip > $BACKUP_DIR/db_$DATE.sql.gz
+
+# Keep only last 7 days
+find $BACKUP_DIR -name "db_*.sql.gz" -mtime +7 -delete
+
+echo "Database backup completed: $DATE"
+```
+
+```bash
+# Make executable
+sudo chmod +x /usr/local/bin/app038-backup-db.sh
+
+# Add to crontab (daily backup at 2 AM)
+sudo crontab -e
+# Add line:
+0 2 * * * /usr/local/bin/app038-backup-db.sh >> /var/log/app038-backup.log 2>&1
+```
+
+**Volume Backup (Storage Files):**
+
+```bash
+# Backup script untuk volumes
+sudo nano /usr/local/bin/app038-backup-volumes.sh
+```
+
+**Isi script:**
+```bash
+#!/bin/bash
+BACKUP_DIR="/var/backups/app038/volumes"
+DATE=$(date +%Y%m%d_%H%M%S)
+mkdir -p $BACKUP_DIR
+
+# Backup storage directory
+# Path default Dokploy: /root/dokploy/files/app038 atau /opt/dokploy/files/app038
+# Adjust path sesuai lokasi Dokploy Anda
+DOKPLOY_PATH="/root/dokploy"  # Atau /opt/dokploy
+tar -czf $BACKUP_DIR/storage_$DATE.tar.gz -C $DOKPLOY_PATH/files/app038 storage
+
+# Keep only last 7 days
+find $BACKUP_DIR -name "storage_*.tar.gz" -mtime +7 -delete
+
+echo "Volumes backup completed: $DATE"
+```
+
+**Catatan:** Untuk mengetahui path Dokploy files, check di Dokploy UI atau:
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Find Dokploy files directory
+find / -name "dokploy" -type d 2>/dev/null | grep files
+# Atau check di Dokploy UI → Settings → File System
+```
+
+#### 2. Setup Monitoring & Alerts
+
+**Resource Monitoring:**
+
+```bash
+# Install monitoring tools
+sudo apt install htop iotop nethogs -y
+
+# Monitor real-time
+htop          # CPU & Memory
+iotop         # Disk I/O
+nethogs       # Network usage
+```
+
+**Setup Dokploy Monitoring:**
+
+1. Di Dokploy UI (`http://168.231.118.3:3000`), enable monitoring untuk:
+   - CPU usage alerts (threshold: 80%)
+   - Memory usage alerts (threshold: 85%)
+   - Disk usage alerts (threshold: 90%)
+
+2. Setup email notifications untuk alerts
+
+3. **Monitor via Command Line:**
+   ```bash
+   # SSH ke VPS
+   ssh root@168.231.118.3
+   
+   # Check resource usage
+   free -h      # RAM usage
+   df -h        # Disk usage
+   htop         # CPU & Memory (install: apt install htop)
+   
+   # Check Docker resource usage
+   docker stats --no-stream
+   ```
+
+#### 3. Security Hardening
+
+**Setup Fail2Ban (Protection dari brute force):**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Install fail2ban
+sudo apt install fail2ban -y
+
+# Configure
+sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+sudo nano /etc/fail2ban/jail.local
+
+# Enable SSH protection
+# Set: enabled = true untuk [sshd]
+
+# Start fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+
+# Check status
+sudo fail2ban-client status
+
+# Check banned IPs
+sudo fail2ban-client status sshd
+```
+
+**Disable Root Login via SSH (Recommended):**
+
+```bash
+# Create new user dengan sudo
+sudo adduser deploy
+sudo usermod -aG sudo deploy
+
+# Setup SSH key untuk user baru
+# Copy public key ke ~/.ssh/authorized_keys
+
+# Disable root login
+sudo nano /etc/ssh/sshd_config
+# Set: PermitRootLogin no
+
+# Restart SSH
+sudo systemctl restart sshd
+```
+
+**Regular Security Updates:**
+
+```bash
+# Setup automatic security updates
+sudo apt install unattended-upgrades -y
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Manual update
+sudo apt update && sudo apt upgrade -y
+```
+
+#### 4. Performance Optimization
+
+**Database Optimization:**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Connect ke PostgreSQL
+docker exec -it app038_postgres psql -U postgres -d app038
+
+# Run VACUUM (cleanup) - lakukan secara berkala
+VACUUM ANALYZE;
+
+# Check database size
+SELECT pg_size_pretty(pg_database_size('app038'));
+
+# Check table sizes
+SELECT 
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+# Check slow queries (enable jika perlu)
+# SET log_min_duration_statement = 1000;  # Log queries > 1 second
+
+# Exit PostgreSQL
+\q
+```
+
+**PHP-FPM Optimization:**
+
+PHP-FPM sudah dioptimasi di Dockerfile, tapi bisa adjust sesuai kebutuhan:
+
+```bash
+# Check current PHP-FPM config
+docker exec app038_laravel cat /usr/local/etc/php-fpm.d/www.conf | grep pm
+
+# Adjust jika perlu (edit Dockerfile dan rebuild)
+```
+
+**Redis Optimization:**
+
+```bash
+# Check Redis memory usage
+docker exec app038_redis redis-cli INFO memory
+
+# Set max memory jika perlu
+docker exec app038_redis redis-cli CONFIG SET maxmemory 256mb
+docker exec app038_redis redis-cli CONFIG SET maxmemory-policy allkeys-lru
+```
+
+#### 5. Setup Queue Workers (Jika Diperlukan)
+
+Jika aplikasi menggunakan Laravel queues, tambahkan queue worker service:
+
+**Update docker-compose.dokploy.yml:**
+
+Tambahkan service berikut:
+
+```yaml
+queue-worker:
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  restart: always
+  command: php artisan queue:work rabbitmq --sleep=3 --tries=3 --max-time=3600
+  environment:
+    - APP_ENV=production
+    - APP_DEBUG=false
+    - DB_CONNECTION=pgsql
+    - DB_HOST=postgres
+    - DB_PORT=5432
+    - DB_DATABASE=${DB_DATABASE}
+    - DB_USERNAME=${DB_USERNAME}
+    - DB_PASSWORD=${DB_PASSWORD}
+    - REDIS_HOST=redis
+    - REDIS_PORT=6379
+    - REDIS_PASSWORD=${REDIS_PASSWORD}
+    - CACHE_DRIVER=redis
+    - SESSION_DRIVER=redis
+    - QUEUE_CONNECTION=rabbitmq
+    - RABBITMQ_HOST=rabbitmq
+    - RABBITMQ_PORT=5672
+    - RABBITMQ_USER=${RABBITMQ_USER}
+    - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+  volumes:
+    - ../files/app038/storage:/app/storage
+    - ../files/app038/bootstrap/cache:/app/bootstrap/cache
+  networks:
+    - dokploy-network
+  depends_on:
+    - postgres
+    - redis
+    - rabbitmq
+```
+
+**Deploy ulang di Dokploy** setelah menambahkan service baru.
+
+#### 6. Setup Scheduled Tasks (Laravel Scheduler)
+
+Tambahkan scheduler service:
+
+```yaml
+scheduler:
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  restart: always
+  command: php artisan schedule:work
+  environment:
+    # Same as laravel service
+  volumes:
+    - ../files/app038/storage:/app/storage
+  networks:
+    - dokploy-network
+  depends_on:
+    - postgres
+    - redis
+```
+
+#### 7. Regular Maintenance Tasks
+
+**Weekly Tasks:**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Check disk usage
+df -h
+# Monitor: pastikan tidak melebihi 80% usage
+
+# Check memory usage
+free -h
+# Monitor: pastikan available memory masih cukup
+
+# Review application logs
+# Via Dokploy UI: http://168.231.118.3:3000 → Logs tab
+# Atau via command:
+docker logs app038_laravel --tail 100
+docker logs app038_svelte --tail 100
+
+# Check for security updates
+sudo apt list --upgradable
+
+# Check Docker disk usage
+docker system df
+
+# Clean unused Docker resources (jika perlu)
+docker system prune -a --volumes  # HATI-HATI: ini akan hapus unused images/volumes
+```
+
+**Monthly Tasks:**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Update Dokploy
+# Find Dokploy directory (biasanya /root/dokploy atau /opt/dokploy)
+cd /root/dokploy  # Atau /opt/dokploy
+git pull
+docker-compose pull
+docker-compose up -d
+
+# Update application dependencies (jika perlu)
+# Via Dokploy UI: http://168.231.118.3:3000 → Redeploy dengan updated code
+# Atau manual:
+cd /path/to/app038
+git pull origin main
+# Redeploy via Dokploy UI
+
+# Review and optimize database
+docker exec app038_postgres psql -U postgres -d app038 -c "VACUUM ANALYZE;"
+
+# Review backup files
+ls -lh /var/backups/app038/
+
+# Check backup integrity
+# Test restore dari backup terbaru (di test environment)
+
+# Review security logs
+sudo journalctl -u ssh -n 100
+sudo fail2ban-client status
+```
+
+### Tips Optimasi VPS Hostinger
+
+1. **Resource Monitoring:**
+   ```bash
+   # Install htop untuk monitoring
+   sudo apt install htop -y
+   htop
+   
+   # Check disk usage
+   df -h
+   
+   # Check memory usage
+   free -h
+   ```
+
+2. **Database Optimization:**
+   - Regular VACUUM untuk PostgreSQL
+   - Setup connection pooling jika traffic tinggi
+   - Monitor slow queries
+
+3. **Cache Strategy:**
+   - Gunakan Redis untuk cache dan session
+   - Enable OPcache untuk PHP (sudah enabled)
+   - Setup Nginx cache untuk static assets
+
+4. **Backup Strategy:**
+   - Daily database backups
+   - Weekly full backups (code + database)
+   - Store backups di external storage (S3, Google Drive, dll)
+
+### Upgrade VPS Hostinger
+
+**Status VPS Anda Saat Ini:**
+- **Current Plan:** KVM 2
+- **CPUs:** 2 cores
+- **RAM:** 8GB (8192 MB) - **Sudah sangat baik untuk production!**
+- **Disk:** 100GB (102400 MB) - **Cukup untuk aplikasi + data**
+
+**Kapan Perlu Upgrade:**
+- Jika traffic sangat tinggi dan CPU usage konsisten > 80%
+- Jika RAM usage konsisten > 85%
+- Jika disk usage > 80% dan terus meningkat
+- Jika response time lambat meskipun sudah dioptimasi
+
+**Upgrade Options:**
+- **KVM 2 → KVM 4**: 4 CPUs, 16GB RAM (untuk very high traffic)
+- **Add SSD storage**: Untuk better I/O performance
+- **Add bandwidth**: Jika traffic data transfer tinggi
+
+**Cara Upgrade:**
+1. Login ke Hostinger hPanel: https://hpanel.hostinger.com
+2. Navigate ke **VPS** section
+3. Pilih VPS: `srv1162366.hstgr.cloud` (IP: 168.231.118.3)
+4. Klik **"Upgrade"** dan pilih plan baru
+5. Tunggu proses upgrade selesai (biasanya beberapa menit)
+6. Restart services jika perlu:
+   ```bash
+   ssh root@168.231.118.3
+   docker-compose -f /path/to/dokploy/docker-compose.yml restart
+   ```
+
+### Troubleshooting Common Issues
+
+**Issue: High Memory Usage**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Check memory usage per container
+docker stats --no-stream
+
+# Check overall memory
+free -h
+
+# Identify container dengan high memory
+# Restart container jika perlu
+docker restart app038_laravel
+
+# Atau via Dokploy UI: Applications → app038-production → Restart service
+
+# Check for memory leaks
+docker logs app038_laravel | grep -i "memory\|fatal"
+
+# Check PHP-FPM processes
+docker exec app038_laravel ps aux | grep php-fpm
+
+# Adjust PHP-FPM config jika perlu (edit Dockerfile dan rebuild)
+```
+
+**Issue: Disk Space Full**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Check disk usage
+df -h
+# Check: pastikan tidak melebihi 80% usage
+
+# Check what's using space
+du -sh /* 2>/dev/null | sort -h | tail -10
+
+# Clean Docker unused resources (HATI-HATI!)
+docker system prune -a --volumes
+# Atau lebih aman, hanya unused:
+docker system prune
+
+# Clean old logs
+sudo journalctl --vacuum-time=7d
+
+# Remove old backups (keep last 30 days)
+find /var/backups/app038 -type f -mtime +30 -delete
+
+# Clean old Docker images
+docker image prune -a
+
+# Check Dokploy files size
+du -sh /root/dokploy/files/app038/*  # Atau /opt/dokploy/files/app038/*
+```
+
+**Issue: Slow Response Time**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Check database connections
+docker exec app038_postgres psql -U postgres -d app038 -c "SELECT count(*) FROM pg_stat_activity;"
+
+# Check active database queries
+docker exec app038_postgres psql -U postgres -d app038 -c "SELECT pid, state, query FROM pg_stat_activity WHERE state != 'idle';"
+
+# Check Redis performance
+docker exec app038_redis redis-cli --latency
+
+# Check Redis memory usage
+docker exec app038_redis redis-cli INFO memory
+
+# Check application logs untuk slow queries
+docker logs app038_laravel | grep -i "slow\|timeout"
+
+# Check PHP-FPM status
+docker exec app038_laravel curl http://localhost/status
+
+# Check Nginx access logs
+docker logs app038_laravel | grep nginx
+
+# Check system load
+uptime
+top
+```
+
+### Support & Resources
+
+- **Dokploy Documentation**: https://docs.dokploy.com
+- **Dokploy GitHub**: https://github.com/dokploy/dokploy
+- **Hostinger Support**: https://www.hostinger.com/contact
+- **Hostinger hPanel**: https://hpanel.hostinger.com
+- **Hostinger Knowledge Base**: https://support.hostinger.com
+- **VPS Management**: Login ke hPanel → VPS → srv1162366.hstgr.cloud
+- **Docker Documentation**: https://docs.docker.com
+- **Laravel Documentation**: https://laravel.com/docs
+- **Nginx Documentation**: https://nginx.org/en/docs/
+- **PostgreSQL Documentation**: https://www.postgresql.org/docs/
+- **Redis Documentation**: https://redis.io/documentation
+- **RabbitMQ Documentation**: https://www.rabbitmq.com/documentation.html

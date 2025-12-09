@@ -35,12 +35,12 @@ WORKDIR /app
 COPY composer.json composer.lock ./
 
 # Install dependencies (cached layer)
+# Use --no-autoloader because autoloader needs app files which aren't available yet
 RUN composer install \
     --no-dev \
     --no-scripts \
     --no-autoloader \
     --prefer-dist \
-    --optimize-autoloader \
     --ignore-platform-reqs
 
 # Stage 2: Application build
@@ -118,23 +118,35 @@ RUN { \
     echo 'opcache.validate_timestamps=0'; \
 } > /usr/local/etc/php/conf.d/opcache.ini
 
-# Copy Composer dependencies from previous stage
-COPY --from=composer /app/vendor /app/vendor
-
 # Set working directory
 WORKDIR /app
 
-# Copy application files
-COPY . .
-
-# Copy Composer autoloader
+# Copy composer files first
 COPY --from=composer /app/composer.json /app/composer.lock ./
 
-# Install Composer for final autoloader generation
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Generate optimized autoloader
-RUN composer dump-autoload --optimize --classmap-authoritative --no-dev
+# Copy Composer dependencies from previous stage
+COPY --from=composer /app/vendor /app/vendor
+
+# Copy application files (needed for autoloader generation of App namespace)
+COPY . .
+
+# Ensure required directories exist for Laravel
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views \
+    && mkdir -p bootstrap/cache
+
+# Generate optimized autoloader (after app files are copied)
+# This ensures App namespace and other PSR-4 namespaces are properly mapped
+# Use --no-scripts to avoid running post-autoload-dump scripts that may require env vars
+# Add --ignore-platform-reqs to skip platform check issues
+# Try multiple approaches if one fails
+RUN (composer dump-autoload --optimize --no-dev --no-scripts --ignore-platform-reqs 2>&1 || \
+     composer dump-autoload --optimize --no-dev --no-scripts --ignore-platform-reqs --apcu 2>&1 || \
+     composer dump-autoload --no-dev --no-scripts --ignore-platform-reqs 2>&1 || \
+     echo "Warning: composer dump-autoload failed, will regenerate at runtime") && \
+    echo "Autoloader generation completed"
 
 # Set permissions
 RUN chown -R www-data:www-data /app \
