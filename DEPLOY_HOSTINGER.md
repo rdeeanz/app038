@@ -1270,6 +1270,337 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 ---
 
+### Step 11A: Final Steps untuk Akses Online dari Internet
+
+**⚠️ PENTING: Langkah-langkah ini WAJIB dilakukan agar website bisa diakses dari internet!**
+
+**11A.1. Fix Port Conflict (Svelte Container vs Nginx)**
+
+**Masalah:** Svelte container di `docker-compose.prod.yml` expose port `80:80`, yang akan conflict dengan Nginx di host yang juga menggunakan port 80.
+
+**Solusi: Ubah Svelte Container Port Mapping**
+
+```bash
+# Edit docker-compose.prod.yml
+cd /var/www/app038
+nano docker-compose.prod.yml
+```
+
+**Ubah bagian svelte service dari:**
+```yaml
+ports:
+  - "80:80"
+```
+
+**Menjadi:**
+```yaml
+ports:
+  - "8080:80"  # Map container port 80 ke host port 8080
+```
+
+**Atau hapus port mapping sama sekali (Recommended - karena Nginx akan proxy ke container):**
+```yaml
+# Hapus atau comment out ports section
+# ports:
+#   - "80:80"
+```
+
+**Setelah edit, restart services:**
+```bash
+# Stop services
+docker-compose -f docker-compose.prod.yml down
+
+# Start services lagi
+docker-compose -f docker-compose.prod.yml up -d
+
+# Verify
+docker ps | grep app038_svelte
+# Port mapping harus sesuai dengan yang di-edit
+```
+
+**11A.2. Update Nginx Configuration untuk Proxy ke Container**
+
+**Jika Svelte container menggunakan port 8080 di host:**
+```bash
+# Edit Nginx config
+sudo nano /etc/nginx/sites-available/app038
+```
+
+**Update proxy_pass dari:**
+```nginx
+proxy_pass http://127.0.0.1:80;
+```
+
+**Menjadi:**
+```nginx
+proxy_pass http://127.0.0.1:8080;
+```
+
+**Atau jika menggunakan Docker network (Recommended):**
+```nginx
+# Gunakan Docker network untuk proxy langsung ke container
+proxy_pass http://172.17.0.1:8080;
+# Atau cari IP container:
+docker inspect app038_svelte | grep IPAddress
+# Gunakan IP tersebut, atau lebih baik gunakan host.docker.internal jika tersedia
+```
+
+**Reload Nginx:**
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+**11A.3. Verify Port 80 Tidak Terpakai oleh Container**
+
+```bash
+# Check apakah ada container yang menggunakan port 80
+sudo netstat -tlnp | grep :80
+sudo ss -tlnp | grep :80
+
+# Jika ada container yang menggunakan port 80, stop dulu:
+docker ps | grep 80
+# Stop container yang menggunakan port 80 (biasanya svelte container)
+docker stop <container_id>
+
+# Pastikan Nginx menggunakan port 80
+sudo systemctl status nginx
+sudo netstat -tlnp | grep :80
+# Expected: nginx harus listen di port 80
+```
+
+**11A.4. Verify Firewall Rules**
+
+```bash
+# Check firewall status
+sudo ufw status verbose
+
+# Pastikan port 80 dan 443 terbuka
+# Expected output harus include:
+# 80/tcp                     ALLOW       Anywhere
+# 443/tcp                    ALLOW       Anywhere
+
+# Jika belum, tambahkan:
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw reload
+```
+
+**11A.5. Test Akses dari Internet (Tanpa Domain - Via IP)**
+
+```bash
+# Test dari VPS sendiri
+curl -I http://168.231.118.3
+# Expected: HTTP 200 atau 301 (redirect ke HTTPS jika SSL aktif)
+
+# Test dari komputer lokal (bukan VPS)
+# Buka browser dan akses: http://168.231.118.3
+# Website harus bisa diakses
+
+# Test dengan curl dari komputer lokal
+curl -I http://168.231.118.3
+curl http://168.231.118.3/health
+# Expected: HTTP 200 OK dengan response "healthy"
+```
+
+**11A.6. Test Akses dari Internet (Dengan Domain - Jika Punya Domain)**
+
+```bash
+# Pastikan DNS sudah pointing ke IP VPS
+dig +short yourdomain.com
+# Expected: 168.231.118.3
+
+# Test HTTP (harus redirect ke HTTPS jika SSL aktif)
+curl -I http://yourdomain.com
+# Expected: HTTP 301 (redirect) atau 200
+
+# Test HTTPS
+curl -I https://yourdomain.com
+# Expected: HTTP 200 OK
+
+# Test dari browser
+# Buka: https://yourdomain.com
+# Website harus bisa diakses dengan SSL certificate valid
+```
+
+**11A.7. Final Verification Checklist**
+
+**Lakukan semua check berikut untuk memastikan website bisa diakses online:**
+
+```bash
+# ✅ Checklist 1: Docker Containers Running
+docker ps
+# Expected: Semua container (laravel, svelte, postgres, redis, rabbitmq) harus "Up"
+
+# ✅ Checklist 2: Nginx Running
+sudo systemctl status nginx
+# Expected: Active (running)
+
+# ✅ Checklist 3: Port 80 & 443 Open
+sudo ufw status | grep -E "80|443"
+# Expected: 80/tcp dan 443/tcp harus ALLOW
+
+# ✅ Checklist 4: Port 80 Not Used by Container
+sudo netstat -tlnp | grep :80
+# Expected: Hanya nginx yang listen di port 80 (bukan container)
+
+# ✅ Checklist 5: Nginx Configuration Valid
+sudo nginx -t
+# Expected: Syntax OK, test successful
+
+# ✅ Checklist 6: Health Endpoint Accessible
+curl http://localhost/health
+curl http://168.231.118.3/health
+# Expected: HTTP 200 OK dengan response "healthy"
+
+# ✅ Checklist 7: Website Accessible from VPS
+curl -I http://168.231.118.3
+# Expected: HTTP 200 atau 301
+
+# ✅ Checklist 8: Website Accessible from Internet (Test dari komputer lokal)
+# Buka browser: http://168.231.118.3
+# Expected: Website bisa diakses
+
+# ✅ Checklist 9: SSL Certificate (Jika menggunakan domain)
+curl -I https://yourdomain.com
+openssl s_client -connect yourdomain.com:443 -servername yourdomain.com < /dev/null 2>/dev/null | grep "Verify return code"
+# Expected: Verify return code: 0 (ok)
+
+# ✅ Checklist 10: Database Connection
+docker exec app038_laravel php artisan tinker --execute="DB::connection()->getPdo(); echo 'OK';"
+# Expected: OK (tidak ada error)
+
+# ✅ Checklist 11: Application Logs (No Critical Errors)
+docker logs app038_laravel --tail 20 | grep -i error
+# Expected: Tidak ada error critical (warnings boleh ada)
+```
+
+**11A.8. Troubleshooting Akses dari Internet**
+
+**Issue 1: Website tidak bisa diakses dari internet (timeout)**
+
+```bash
+# Check firewall
+sudo ufw status verbose
+# Pastikan port 80 dan 443 terbuka
+
+# Check apakah Nginx listen di port 80
+sudo netstat -tlnp | grep :80
+# Expected: nginx harus listen di 0.0.0.0:80
+
+# Check Nginx error logs
+sudo tail -f /var/log/nginx/error.log
+
+# Test dari VPS sendiri
+curl -I http://localhost
+curl -I http://168.231.118.3
+```
+
+**Issue 2: Port 80 sudah digunakan oleh container**
+
+```bash
+# Find process using port 80
+sudo lsof -i :80
+sudo netstat -tlnp | grep :80
+
+# Stop container yang menggunakan port 80
+docker ps | grep 80
+docker stop <container_id>
+
+# Restart Nginx
+sudo systemctl restart nginx
+
+# Verify
+sudo netstat -tlnp | grep :80
+# Expected: Hanya nginx yang listen
+```
+
+**Issue 3: Nginx proxy error (502 Bad Gateway)**
+
+```bash
+# Check Nginx error logs
+sudo tail -f /var/log/nginx/app038-error.log
+
+# Check apakah Svelte container running
+docker ps | grep app038_svelte
+
+# Check Svelte container logs
+docker logs app038_svelte --tail 50
+
+# Test connection dari Nginx ke container
+# Jika container menggunakan port 8080:
+curl http://127.0.0.1:8080/health
+# Expected: HTTP 200 OK
+
+# Update Nginx proxy_pass jika perlu
+sudo nano /etc/nginx/sites-available/app038
+# Pastikan proxy_pass pointing ke port yang benar
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+**Issue 4: DNS tidak resolve (jika menggunakan domain)**
+
+```bash
+# Check DNS propagation
+dig +short yourdomain.com
+# Expected: 168.231.118.3
+
+# Check dari multiple DNS servers
+dig @8.8.8.8 yourdomain.com
+dig @1.1.1.1 yourdomain.com
+
+# Tunggu DNS propagation (bisa sampai 24 jam, biasanya 5-30 menit)
+# Gunakan DNS checker online: https://dnschecker.org
+```
+
+**11A.9. Status Deployment Saat Ini**
+
+**Gunakan checklist berikut untuk track progress deployment:**
+
+```bash
+# Copy dan paste di terminal, check setiap item:
+echo "=== Deployment Status Checklist ==="
+echo ""
+echo "1. Docker & Docker Compose Installed:"
+docker --version && docker-compose --version && echo "✅ OK" || echo "❌ MISSING"
+echo ""
+echo "2. Firewall Configured:"
+sudo ufw status | grep -q "80/tcp" && echo "✅ Port 80 Open" || echo "❌ Port 80 Closed"
+sudo ufw status | grep -q "443/tcp" && echo "✅ Port 443 Open" || echo "❌ Port 443 Closed"
+echo ""
+echo "3. Docker Network Created:"
+docker network ls | grep -q app038_network && echo "✅ Network Exists" || echo "❌ Network Missing"
+echo ""
+echo "4. Environment File Configured:"
+[ -f /var/www/app038/.env ] && echo "✅ .env Exists" || echo "❌ .env Missing"
+grep -q "APP_ENV=production" /var/www/app038/.env 2>/dev/null && echo "✅ APP_ENV=production" || echo "❌ APP_ENV Wrong"
+grep -q "DB_HOST=postgres" /var/www/app038/.env 2>/dev/null && echo "✅ DB_HOST=postgres" || echo "❌ DB_HOST Wrong"
+echo ""
+echo "5. Docker Containers Running:"
+docker ps | grep -q app038_laravel && echo "✅ Laravel Running" || echo "❌ Laravel Not Running"
+docker ps | grep -q app038_svelte && echo "✅ Svelte Running" || echo "❌ Svelte Not Running"
+docker ps | grep -q app038_postgres && echo "✅ PostgreSQL Running" || echo "❌ PostgreSQL Not Running"
+docker ps | grep -q app038_redis && echo "✅ Redis Running" || echo "❌ Redis Not Running"
+echo ""
+echo "6. Nginx Installed & Running:"
+sudo systemctl is-active --quiet nginx && echo "✅ Nginx Running" || echo "❌ Nginx Not Running"
+[ -f /etc/nginx/sites-enabled/app038 ] && echo "✅ Nginx Config Exists" || echo "❌ Nginx Config Missing"
+echo ""
+echo "7. SSL Certificate (Jika menggunakan domain):"
+[ -d /etc/letsencrypt/live ] && echo "✅ SSL Directory Exists" || echo "⚠️  SSL Not Configured (OK jika belum punya domain)"
+echo ""
+echo "8. Website Accessible:"
+curl -s -o /dev/null -w "%{http_code}" http://localhost/health | grep -q "200" && echo "✅ Health Endpoint OK" || echo "❌ Health Endpoint Failed"
+curl -s -o /dev/null -w "%{http_code}" http://168.231.118.3/health | grep -q "200" && echo "✅ Website Accessible via IP" || echo "❌ Website Not Accessible"
+echo ""
+echo "=== End of Checklist ==="
+```
+
+**Setelah semua checklist ✅, website sudah siap diakses dari internet!**
+
+---
+
 ### Step 12: Setup Auto-start on Boot
 
 **12.1. Enable Docker Auto-start**
@@ -2941,6 +3272,225 @@ docker exec -it app038_postgres psql -U postgres
 # Atau dari command line:
 docker exec app038_postgres psql -U postgres -c "CREATE DATABASE app038;"
 ```
+
+### Issue: Password Authentication Failed for User "postgres"
+
+**Error:** `FATAL: password authentication failed for user "postgres"`
+
+**Penyebab:**
+- `DB_PASSWORD` di `.env` file tidak sesuai dengan `POSTGRES_PASSWORD` yang digunakan saat postgres container dibuat
+- Password di `.env` berbeda dengan password yang di-set di postgres container
+- Postgres container dibuat dengan password berbeda, lalu `.env` di-update tapi container tidak di-recreate
+
+**Solusi:**
+
+**1. Check Password di .env File:**
+
+```bash
+# Check DB_PASSWORD di .env
+cd /var/www/app038
+grep DB_PASSWORD .env
+
+# Check apakah password kosong atau tidak ada
+# Jika kosong atau tidak ada, perlu di-set
+```
+
+**2. Check Password yang Digunakan oleh Postgres Container:**
+
+```bash
+# Check environment variables di postgres container
+docker exec app038_postgres env | grep POSTGRES_PASSWORD
+
+# Atau check dengan inspect
+docker inspect app038_postgres | grep -A 10 "Env"
+# Cari POSTGRES_PASSWORD di output
+```
+
+**3. Fix Password Mismatch - Opsi A: Update .env dan Recreate Postgres Container (Recommended):**
+
+**⚠️ PENTING: Lakukan semua langkah ini secara berurutan!**
+
+```bash
+# Step 1: Navigate ke project directory
+cd /var/www/app038
+
+# Step 2: Check password saat ini di .env
+echo "=== Current Password di .env ==="
+grep "^DB_PASSWORD=" .env | cut -d '=' -f2
+echo ""
+
+# Step 3: Check password yang digunakan postgres container
+echo "=== Password di Postgres Container ==="
+docker exec app038_postgres env | grep POSTGRES_PASSWORD | cut -d '=' -f2
+echo ""
+
+# Step 4: Generate password baru yang kuat
+NEW_DB_PASSWORD=$(openssl rand -base64 32)
+echo "=== New Password Generated ==="
+echo "${NEW_DB_PASSWORD}"
+echo ""
+echo "⚠️ SIMPAN PASSWORD INI! Anda akan membutuhkannya nanti."
+echo ""
+
+# Step 5: Update .env file dengan password baru
+sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${NEW_DB_PASSWORD}/" .env
+
+# Step 6: Verify .env updated
+echo "=== Verify .env Updated ==="
+grep "^DB_PASSWORD=" .env
+echo ""
+
+# Step 7: Stop postgres container (PENTING: Backup data dulu jika ada data penting!)
+echo "=== Stopping Postgres Container ==="
+docker-compose -f docker-compose.prod.yml stop postgres
+
+# Step 8: Remove postgres container (data di volume akan tetap ada)
+echo "=== Removing Postgres Container ==="
+docker-compose -f docker-compose.prod.yml rm -f postgres
+
+# Step 9: Start postgres container lagi (akan menggunakan password baru dari .env)
+echo "=== Starting Postgres Container dengan Password Baru ==="
+docker-compose -f docker-compose.prod.yml up -d postgres
+
+# Step 10: Wait untuk postgres ready (PENTING - jangan skip!)
+echo "=== Waiting for Postgres Ready (15 seconds) ==="
+sleep 15
+
+# Step 11: Verify postgres ready
+echo "=== Verifying Postgres Ready ==="
+docker exec app038_postgres pg_isready -U postgres
+# Expected: "postgres:5432 - accepting connections"
+echo ""
+
+# Step 12: Restart Laravel container untuk reload .env
+echo "=== Restarting Laravel Container ==="
+docker-compose -f docker-compose.prod.yml restart laravel
+
+# Step 13: Wait untuk Laravel ready
+echo "=== Waiting for Laravel Ready (10 seconds) ==="
+sleep 10
+
+# Step 14: Test connection
+echo "=== Testing Database Connection ==="
+docker exec app038_laravel php artisan tinker --execute="DB::connection()->getPdo(); echo 'Connection OK';"
+# Expected: "Connection OK" (tidak ada error)
+echo ""
+
+# Step 15: Verify password sync
+echo "=== Final Verification ==="
+echo "DB_PASSWORD di .env:"
+grep "^DB_PASSWORD=" .env | cut -d '=' -f2
+echo ""
+echo "POSTGRES_PASSWORD di container:"
+docker exec app038_postgres env | grep POSTGRES_PASSWORD | cut -d '=' -f2
+echo ""
+echo "✅ Jika kedua password sama, fix berhasil!"
+```
+
+**Quick Fix Script (Copy-Paste Semua Sekaligus):**
+
+```bash
+# Copy semua script ini dan paste di terminal VPS
+cd /var/www/app038 && \
+NEW_DB_PASSWORD=$(openssl rand -base64 32) && \
+echo "Generated Password: ${NEW_DB_PASSWORD}" && \
+sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${NEW_DB_PASSWORD}/" .env && \
+echo "✅ .env updated" && \
+docker-compose -f docker-compose.prod.yml stop postgres && \
+docker-compose -f docker-compose.prod.yml rm -f postgres && \
+docker-compose -f docker-compose.prod.yml up -d postgres && \
+echo "⏳ Waiting for postgres..." && \
+sleep 20 && \
+docker exec app038_postgres pg_isready -U postgres && \
+docker-compose -f docker-compose.prod.yml restart laravel && \
+sleep 10 && \
+echo "🧪 Testing connection..." && \
+docker exec app038_laravel php artisan tinker --execute="DB::connection()->getPdo(); echo '✅ Connection OK';" && \
+echo "✅ Fix completed! Password: ${NEW_DB_PASSWORD}"
+```
+
+**4. Fix Password Mismatch - Opsi B: Update Postgres Password di Database (Jika Ada Data Penting):**
+
+```bash
+# Step 1: Check password yang digunakan postgres container saat ini
+docker exec app038_postgres env | grep POSTGRES_PASSWORD
+
+# Step 2: Connect ke postgres dengan password yang benar (dari step 1)
+# Atau jika tahu password, connect langsung:
+docker exec -it app038_postgres psql -U postgres
+
+# Step 3: Di dalam psql, update password:
+# ALTER USER postgres WITH PASSWORD 'new_password_here';
+# \q
+
+# Step 4: Update .env file dengan password yang sama
+nano .env
+# Update DB_PASSWORD dengan password yang baru di-set
+
+# Step 5: Restart Laravel container
+docker-compose -f docker-compose.prod.yml restart laravel
+
+# Step 6: Test connection
+docker exec app038_laravel php artisan tinker --execute="DB::connection()->getPdo(); echo 'Connection OK';"
+```
+
+**5. Quick Fix - Verify dan Sync Password:**
+
+```bash
+# One-liner untuk check password mismatch
+cd /var/www/app038
+echo "=== Password Check ==="
+echo "DB_PASSWORD di .env:"
+grep "^DB_PASSWORD=" .env | cut -d '=' -f2
+echo ""
+echo "POSTGRES_PASSWORD di container:"
+docker exec app038_postgres env | grep POSTGRES_PASSWORD | cut -d '=' -f2
+echo ""
+echo "=== Jika berbeda, gunakan Opsi A untuk fix ==="
+```
+
+**6. Prevention - Setup Password dengan Benar dari Awal:**
+
+```bash
+# Generate password yang kuat
+DB_PASS=$(openssl rand -base64 32)
+echo "Generated Password: ${DB_PASS}"
+
+# Update .env file
+sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${DB_PASS}/" .env
+
+# Verify
+grep DB_PASSWORD .env
+
+# Pastikan password ini digunakan saat pertama kali create postgres container
+# Jika postgres container sudah ada, gunakan Opsi A untuk recreate dengan password baru
+```
+
+**7. Verify Fix:**
+
+```bash
+# Test database connection
+docker exec app038_laravel php artisan tinker --execute="try { DB::connection()->getPdo(); echo 'Connection OK'; } catch (Exception \$e) { echo 'Error: ' . \$e->getMessage(); }"
+
+# Expected: "Connection OK" (tidak ada error)
+# Jika masih error, check error message untuk detail lebih lanjut
+
+# Test dengan psql langsung
+docker exec app038_postgres psql -U postgres -d app038 -c "SELECT 1;"
+# Expected: Output dengan "1" (tidak ada error)
+```
+
+**Common Mistakes:**
+- ❌ Password di `.env` berbeda dengan password di postgres container
+- ❌ Password kosong atau tidak di-set
+- ❌ Postgres container dibuat dengan password default, lalu `.env` di-update tapi container tidak di-recreate
+- ❌ Multiple `.env` files atau `.env` file di lokasi yang salah
+
+**Prevention:**
+- **Selalu generate password yang kuat** sebelum create postgres container
+- **Set password di `.env` file** sebelum run `docker-compose up -d`
+- **Jika update password di `.env`**, pastikan untuk **recreate postgres container** agar password sync
+- **Backup database** sebelum recreate postgres container jika ada data penting
 
 **Quick Diagnostic Commands:**
 
