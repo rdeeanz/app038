@@ -2965,10 +2965,142 @@ docker exec app038_postgres pg_isready -U postgres
 - ❌ Network tidak sama antara Laravel dan PostgreSQL containers
 - ❌ Environment variables tidak di-pass ke container
 
+**10. Step-by-Step Fix untuk Error "connection to localhost" (Lakukan Semua Langkah Ini Secara Berurutan!):**
+
+Jika masih mendapatkan error "connection to localhost" setelah fix .env, ikuti langkah-langkah berikut **secara berurutan**:
+
+```bash
+# Step 1: Navigate ke project directory
+cd /var/www/app038
+
+# Step 2: Check DB_HOST di .env file
+grep DB_HOST .env
+# Jika output: DB_HOST=localhost atau DB_HOST=127.0.0.1 atau tidak ada → LANJUT KE STEP 3
+
+# Step 3: Fix DB_HOST di .env file (PENTING!)
+sed -i 's/^DB_HOST=.*/DB_HOST=postgres/' .env
+# Atau jika baris DB_HOST tidak ada sama sekali:
+if ! grep -q "^DB_HOST=" .env; then
+    echo "DB_HOST=postgres" >> .env
+fi
+
+# Step 4: Verify fix
+grep DB_HOST .env
+# Expected output: DB_HOST=postgres
+
+# Step 5: Check apakah PostgreSQL container running
+docker ps | grep app038_postgres
+# Jika tidak ada atau status "Exited", start:
+docker-compose -f docker-compose.prod.yml up -d postgres
+
+# Step 6: Wait untuk PostgreSQL ready (PENTING - jangan skip!)
+sleep 20
+
+# Step 7: Verify PostgreSQL ready
+docker exec app038_postgres pg_isready -U postgres
+# Expected: "postgres:5432 - accepting connections"
+# Jika error, wait lebih lama dan check logs: docker logs app038_postgres
+
+# Step 8: Stop Laravel container (untuk force reload environment variables)
+docker-compose -f docker-compose.prod.yml stop laravel
+
+# Step 9: Start Laravel container lagi (akan load .env baru)
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Step 10: Wait untuk Laravel container ready
+sleep 10
+
+# Step 11: Verify environment variables di container (PENTING!)
+docker exec app038_laravel env | grep DB_HOST
+# Expected: DB_HOST=postgres (BUKAN localhost!)
+# Jika masih "localhost", ada masalah dengan .env file atau container tidak reload
+
+# Step 12: Test network connectivity
+docker exec app038_laravel ping -c 3 postgres
+# Expected: 3 packets transmitted, 3 received
+# Jika tidak bisa ping, check network: docker network inspect app038_network
+
+# Step 13: Test database connection dengan tinker
+docker exec app038_laravel php artisan tinker --execute="try { DB::connection()->getPdo(); echo 'Connection OK'; } catch (Exception \$e) { echo 'Error: ' . \$e->getMessage(); }"
+# Expected: "Connection OK" (tidak ada error)
+# Jika masih error, check error message untuk detail
+
+# Step 14: Run migration (setelah semua step di atas berhasil)
+docker exec -it app038_laravel php artisan migrate --force
+```
+
+**Jika masih error setelah semua langkah di atas, lakukan complete reset:**
+
+```bash
+# Complete reset: Stop semua, fix .env, start lagi
+cd /var/www/app038
+
+# Stop semua containers
+docker-compose -f docker-compose.prod.yml down
+
+# Fix .env file (pastikan semua service names benar)
+sed -i 's/^DB_HOST=.*/DB_HOST=postgres/' .env
+sed -i 's/^REDIS_HOST=.*/REDIS_HOST=redis/' .env
+sed -i 's/^RABBITMQ_HOST=.*/RABBITMQ_HOST=rabbitmq/' .env
+
+# Verify .env
+cat .env | grep -E "DB_HOST|REDIS_HOST|RABBITMQ_HOST"
+# Expected:
+# DB_HOST=postgres
+# REDIS_HOST=redis
+# RABBITMQ_HOST=rabbitmq
+
+# Start dependencies dulu
+docker-compose -f docker-compose.prod.yml up -d postgres redis rabbitmq
+
+# Wait untuk dependencies ready (PENTING!)
+sleep 30
+
+# Verify dependencies ready
+docker exec app038_postgres pg_isready -U postgres
+docker exec app038_redis redis-cli ping
+
+# Start Laravel
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Wait untuk Laravel ready
+sleep 15
+
+# Verify environment variables di container
+docker exec app038_laravel env | grep -E "DB_HOST|REDIS_HOST|RABBITMQ_HOST"
+# Expected semua harus service names, bukan localhost
+
+# Run migration
+docker exec -it app038_laravel php artisan migrate --force
+```
+
+**Troubleshooting jika DB_HOST masih "localhost" di container:**
+
+```bash
+# Check apakah .env file benar-benar ter-update
+cat .env | grep DB_HOST
+
+# Check apakah ada multiple DB_HOST entries
+grep -n DB_HOST .env
+# Jika ada multiple, hapus yang salah dan keep yang benar
+
+# Force recreate container dengan environment variables baru
+docker-compose -f docker-compose.prod.yml up -d --force-recreate laravel
+
+# Atau stop dan remove container, lalu start lagi
+docker-compose -f docker-compose.prod.yml stop laravel
+docker-compose -f docker-compose.prod.yml rm -f laravel
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Verify lagi
+docker exec app038_laravel env | grep DB_HOST
+```
+
 **Prevention:**
 - Pastikan `.env` file menggunakan service names (postgres, redis, rabbitmq) bukan localhost
 - Verify semua containers running sebelum run migration
 - Check network connectivity sebelum troubleshooting lebih lanjut
+- **Selalu verify environment variables di container setelah restart** dengan: `docker exec app038_laravel env | grep DB_HOST`
 
 ### Issue: High Memory/CPU Usage
 
