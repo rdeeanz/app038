@@ -1551,6 +1551,29 @@ docker-compose restart
 
 **Lihat `DEPLOY_HOSTINGER.md` section "Issue: Supervisor Directory Not Found" untuk troubleshooting lengkap.**
 
+**Issue: CollisionServiceProvider Not Found**
+
+**Error:** `Class "NunoMaduro\Collision\Adapters\Laravel\CollisionServiceProvider" not found`
+
+**Penyebab:** Bootstrap cache files masih mengandung referensi ke dev dependencies.
+
+**Solusi:**
+
+1. **Clear bootstrap cache:**
+   ```bash
+   docker exec app038_laravel rm -f bootstrap/cache/services.php bootstrap/cache/packages.php
+   docker-compose restart laravel
+   ```
+
+2. **Rebuild container:**
+   ```bash
+   git pull origin main
+   docker-compose build --no-cache laravel
+   docker-compose up -d laravel
+   ```
+
+**Lihat `DEPLOY_HOSTINGER.md` section "Issue: CollisionServiceProvider Not Found" untuk troubleshooting lengkap.**
+
 **Issue: Database connection failed**
 
 1. Check PostgreSQL container running

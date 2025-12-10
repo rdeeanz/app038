@@ -137,6 +137,11 @@ COPY . .
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views \
     && mkdir -p bootstrap/cache
 
+# Clear bootstrap cache to remove dev dependency references (Collision, etc.)
+# This ensures production builds don't try to load dev-only service providers
+RUN rm -f bootstrap/cache/services.php bootstrap/cache/packages.php bootstrap/cache/config.php \
+    bootstrap/cache/routes*.php 2>/dev/null || true
+
 # Generate optimized autoloader (after app files are copied)
 # This ensures App namespace and other PSR-4 namespaces are properly mapped
 # Use --no-scripts to avoid running post-autoload-dump scripts that may require env vars

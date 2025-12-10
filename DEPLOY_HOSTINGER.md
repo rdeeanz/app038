@@ -2553,6 +2553,117 @@ docker exec app038_laravel ps aux | grep supervisord
 
 **Catatan:** Dockerfile di repository sudah diupdate untuk membuat directory yang diperlukan. Pastikan pull latest changes sebelum rebuild.
 
+### Issue: CollisionServiceProvider Not Found
+
+**Error:** `Class "NunoMaduro\Collision\Adapters\Laravel\CollisionServiceProvider" not found`
+
+**Penyebab:**
+- `nunomaduro/collision` adalah dev dependency (require-dev)
+- Di production, Composer install dengan `--no-dev` flag (benar)
+- Tapi file cache di `bootstrap/cache/` masih mengandung referensi ke CollisionServiceProvider
+- File cache ini di-generate saat development dengan dev dependencies terinstall
+
+**Solusi:**
+
+**1. Pull Latest Changes dari Repository (CRITICAL - Lakukan ini dulu!):**
+
+```bash
+# Pull latest changes (Dockerfile sudah diupdate untuk clear bootstrap cache)
+cd /var/www/app038
+git pull origin main
+
+# Verify Dockerfile sudah terupdate
+grep -A 5 "Clear bootstrap cache" docker/php/Dockerfile
+# Should show: RUN rm -f bootstrap/cache/services.php ...
+```
+
+**2. Clear Bootstrap Cache di Container (Quick Fix):**
+
+```bash
+# Clear bootstrap cache files yang mengandung dev dependency references
+docker exec app038_laravel rm -f bootstrap/cache/services.php bootstrap/cache/packages.php bootstrap/cache/config.php bootstrap/cache/routes*.php 2>/dev/null || true
+
+# Atau jika container tidak bisa exec, stop dulu:
+docker stop app038_laravel
+docker run --rm -v $(pwd):/app -w /app app038_laravel:latest sh -c "rm -f bootstrap/cache/services.php bootstrap/cache/packages.php bootstrap/cache/config.php bootstrap/cache/routes*.php"
+
+# Restart container
+docker-compose -f docker-compose.prod.yml restart laravel
+
+# Laravel akan regenerate cache files tanpa dev dependencies
+```
+
+**3. Rebuild Container dengan No Cache (Recommended):**
+
+```bash
+# Rebuild container (Dockerfile sudah diupdate untuk clear cache)
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
+
+# Start container
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Verify cache files tidak mengandung Collision
+docker exec app038_laravel cat bootstrap/cache/services.php | grep -i collision || echo "No Collision references found (good!)"
+```
+
+**4. Manual Clear Cache (Jika Rebuild Tidak Mungkin):**
+
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+cd /var/www/app038
+
+# Stop container
+docker stop app038_laravel
+
+# Remove cache files
+rm -f bootstrap/cache/services.php bootstrap/cache/packages.php bootstrap/cache/config.php bootstrap/cache/routes*.php
+
+# Start container
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Laravel akan regenerate cache files saat startup
+```
+
+**5. Verify Fix:**
+
+```bash
+# Check container logs (seharusnya tidak ada Collision error)
+docker logs app038_laravel --tail 50 | grep -i collision || echo "No Collision errors (good!)"
+
+# Try run migration
+docker exec -it app038_laravel php artisan migrate --force
+
+# Check cache files
+docker exec app038_laravel ls -la bootstrap/cache/
+# Files akan di-regenerate oleh Laravel tanpa dev dependencies
+```
+
+**6. Alternative: Run Migration Tanpa Container (Jika Masih Error):**
+
+```bash
+# Run migration menggunakan PHP image langsung
+docker run --rm \
+  --network app038_network \
+  -v $(pwd):/app \
+  -w /app \
+  -e APP_ENV=production \
+  -e DB_HOST=postgres \
+  -e DB_PORT=5432 \
+  -e DB_DATABASE=$(grep DB_DATABASE .env | cut -d '=' -f2) \
+  -e DB_USERNAME=$(grep DB_USERNAME .env | cut -d '=' -f2) \
+  -e DB_PASSWORD=$(grep DB_PASSWORD .env | cut -d '=' -f2) \
+  php:8.2-cli-alpine \
+  sh -c "apk add --no-cache postgresql-dev && docker-php-ext-install pdo pdo_pgsql && rm -f bootstrap/cache/*.php && php artisan migrate --force"
+```
+
+**Prevention:**
+- Dockerfile sudah diupdate untuk clear bootstrap cache saat build
+- Pastikan pull latest changes sebelum rebuild
+- Jangan commit `bootstrap/cache/` files ke repository (sudah di .gitignore)
+
+**Catatan:** Dockerfile di repository sudah diupdate untuk clear bootstrap cache files yang mengandung dev dependency references. Pastikan pull latest changes sebelum rebuild.
+
 **Prevention:**
 - Pastikan semua environment variables sudah di-set sebelum start container
 - Verify dependencies (postgres, redis, rabbitmq) running sebelum start Laravel
