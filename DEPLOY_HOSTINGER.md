@@ -510,24 +510,34 @@ BROADCAST_DRIVER=log
 # Pastikan Docker sudah running
 sudo systemctl status docker
 
-# Build Laravel image (atau gunakan image yang sudah ada)
+# Method 1: Build image dulu, lalu generate key
 cd /var/www/app038
+
+# Build Laravel image (jika belum)
 docker-compose -f docker-compose.prod.yml build laravel
 
-# Generate APP_KEY menggunakan Docker container
+# Generate APP_KEY menggunakan image yang sudah di-build
 docker run --rm -v $(pwd):/app -w /app \
-  --entrypoint php \
-  $(docker-compose -f docker-compose.prod.yml config | grep -A 1 "laravel:" | grep "image:" | awk '{print $2}') \
-  artisan key:generate --show
-
-# Atau jika image belum ada, gunakan PHP image langsung
-docker run --rm -v $(pwd):/app -w /app \
-  php:8.2-cli-alpine \
+  app038_laravel:latest \
   php artisan key:generate --show
 
-# Copy output (format: base64:xxxxx) ke APP_KEY di .env file
-# Atau APP_KEY akan otomatis di-update jika menggunakan --show tanpa --show
+# Method 2: Gunakan PHP image langsung (Lebih Simple - Recommended)
+docker run --rm -v $(pwd):/app -w /app \
+  php:8.2-cli-alpine \
+  sh -c "composer install --ignore-platform-reqs --no-dev --no-scripts && php artisan key:generate --show"
+
+# Method 3: Generate APP_KEY manual (Paling Simple - Tidak perlu Docker/PHP)
+APP_KEY_VALUE=$(openssl rand -base64 32)
+echo "base64:${APP_KEY_VALUE}"
+
+# Update .env file
+sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+
+# Verify
+grep APP_KEY .env
 ```
+
+**Catatan:** Method 3 (Generate Manual) adalah yang paling simple dan tidak perlu build Docker image atau install PHP. Recommended untuk production deployment.
 
 **Opsi B: Install PHP 8.4 dari PPA (Jika perlu PHP di host)**
 
@@ -580,6 +590,17 @@ php artisan key:generate --show
 
 **Rekomendasi:** Gunakan **Opsi C** (Generate Manual) karena paling simple dan tidak perlu install PHP/Composer di host. Aplikasi akan berjalan di Docker dengan PHP 8.2 yang sudah sesuai dengan requirement.
 
+**Quick Command untuk Generate APP_KEY Manual:**
+
+```bash
+# Generate dan update .env langsung
+cd /var/www/app038
+APP_KEY_VALUE=$(openssl rand -base64 32)
+sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+echo "APP_KEY generated: base64:${APP_KEY_VALUE}"
+grep APP_KEY .env
+```
+
 **4.4. Generate Strong Passwords**
 
 ```bash
@@ -625,8 +646,24 @@ docker network ls | grep app038
 
 **6.1. Build Docker Images**
 
+**PENTING: Pastikan pull latest changes dari repository terlebih dahulu!**
+
 ```bash
-# Build semua images
+# Step 1: Handle local changes (jika ada conflict)
+cd /var/www/app038
+git status
+
+# Jika ada local changes di Dockerfile, discard (versi di repo sudah lebih baik):
+git checkout -- docker/php/Dockerfile
+
+# Step 2: Pull latest changes dari repository (CRITICAL!)
+git pull origin main
+
+# Step 3: Verify Dockerfile sudah terupdate
+grep -A 10 "Generate optimized autoloader" docker/php/Dockerfile
+# Should show multiple fallback commands with --ignore-platform-reqs
+
+# Step 4: Build semua images
 docker-compose -f docker-compose.prod.yml build
 
 # Atau build specific service
@@ -637,7 +674,61 @@ docker-compose -f docker-compose.prod.yml build svelte
 docker images | grep app038
 ```
 
+**Catatan:** Jika build error dengan `composer dump-autoload`, pastikan sudah pull latest changes. Dockerfile sudah diupdate dengan multiple fallback approaches untuk handle berbagai error scenarios.
+
 **Troubleshooting Build Errors:**
+
+**Error: "docker/svelte/default.conf: not found"**
+
+**Penyebab:** File `.dockerignore` di root project mengexclude folder `docker/svelte`, sehingga file konfigurasi Nginx tidak tersedia saat build.
+
+**Solusi:**
+
+1. **Update .dockerignore (Recommended):**
+   ```bash
+   # Edit .dockerignore
+   nano .env
+   # Atau
+   vi .dockerignore
+   
+   # Hapus atau comment baris berikut:
+   # docker/svelte
+   
+   # Atau pastikan baris tersebut sudah di-comment:
+   # # docker/svelte  # Commented out - needed for Docker build
+   ```
+
+2. **Verifikasi file ada:**
+   ```bash
+   # Check apakah file default.conf ada
+   ls -la docker/svelte/default.conf
+   ls -la docker/svelte/nginx.conf
+   
+   # Expected output: file harus ada
+   ```
+
+3. **Pull latest changes dari repository:**
+   ```bash
+   # Pull latest changes (file .dockerignore sudah diupdate)
+   git pull origin main
+   
+   # Verify .dockerignore sudah terupdate
+   grep -A 2 "docker/svelte" .dockerignore
+   # Should show commented line atau tidak ada baris docker/svelte
+   ```
+
+4. **Rebuild dengan no cache:**
+   ```bash
+   # Clean build
+   docker-compose -f docker-compose.prod.yml build --no-cache svelte
+   
+   # Atau rebuild semua
+   docker-compose -f docker-compose.prod.yml build --no-cache
+   ```
+
+**Catatan:** File `.dockerignore` di repository sudah diupdate untuk tidak mengexclude `docker/svelte`. Pastikan Anda sudah pull latest changes sebelum build.
+
+**Error: "composer dump-autoload failed"**
 
 Jika build gagal dengan error `composer dump-autoload`, coba langkah berikut:
 
@@ -1587,6 +1678,109 @@ sudo mv composer.phar /usr/local/bin/composer
 # Generate APP_KEY (akan dijelaskan di Step 4.3)
 ```
 
+### Issue: Docker Build Error - "docker/svelte/default.conf: not found"
+
+**Error:** `failed to solve: failed to compute cache key: failed to calculate checksum of ref ... "/docker/svelte/default.conf": not found`
+
+**Penyebab:**
+- File `.dockerignore` di root project mengexclude folder `docker/svelte`
+- File konfigurasi Nginx (`default.conf` dan `nginx.conf`) tidak tersedia saat Docker build
+- Build context tidak include folder `docker/svelte` karena di-exclude oleh `.dockerignore`
+
+**Solusi:**
+
+**1. Pull Latest Changes dari Repository (CRITICAL - Lakukan ini dulu!):**
+
+```bash
+# Pull latest changes dari repository
+cd /var/www/app038
+
+# Check status
+git status
+
+# Pull latest changes (file .dockerignore sudah diupdate di repository)
+git pull origin main
+
+# Verify .dockerignore sudah terupdate
+grep -A 2 "docker/svelte" .dockerignore
+# Should show commented line atau tidak ada baris yang mengexclude docker/svelte
+```
+
+**2. Manual Fix .dockerignore (Jika pull tidak berhasil):**
+
+```bash
+# Edit .dockerignore
+nano .dockerignore
+# Atau
+vi .dockerignore
+
+# Hapus atau comment baris berikut:
+# docker/svelte
+
+# Atau pastikan baris tersebut sudah di-comment:
+# # docker/svelte  # Commented out - needed for Docker build
+
+# Save dan exit (Ctrl+X, Y, Enter untuk nano)
+```
+
+**3. Verifikasi File Konfigurasi Ada:**
+
+```bash
+# Check apakah file default.conf dan nginx.conf ada
+ls -la docker/svelte/default.conf
+ls -la docker/svelte/nginx.conf
+
+# Expected output: file harus ada dan readable
+# -rw-r--r-- 1 user user ... docker/svelte/default.conf
+# -rw-r--r-- 1 user user ... docker/svelte/nginx.conf
+```
+
+**4. Rebuild dengan No Cache:**
+
+```bash
+# Clean build untuk service svelte
+docker-compose -f docker-compose.prod.yml build --no-cache svelte
+
+# Atau rebuild semua services
+docker-compose -f docker-compose.prod.yml build --no-cache
+
+# Check build progress
+docker-compose -f docker-compose.prod.yml build --progress=plain svelte
+```
+
+**5. Verify Build Context:**
+
+```bash
+# Test apakah file bisa diakses dari build context
+docker build --no-cache -f docker/svelte/Dockerfile -t test-svelte:latest . 2>&1 | grep -i "default.conf"
+
+# Jika masih error, check apakah file benar-benar ada:
+find . -name "default.conf" -type f
+# Should show: ./docker/svelte/default.conf
+```
+
+**6. Alternative: Copy File ke Lokasi Lain (Jika Masih Error):**
+
+Jika masih error setelah fix `.dockerignore`, bisa copy file ke lokasi yang tidak di-exclude:
+
+```bash
+# Copy file ke root project (temporary)
+cp docker/svelte/default.conf ./default.conf.svelte
+cp docker/svelte/nginx.conf ./nginx.conf.svelte
+
+# Update Dockerfile untuk menggunakan file di root:
+# COPY default.conf.svelte /etc/nginx/conf.d/default.conf
+# COPY nginx.conf.svelte /etc/nginx/nginx.conf
+
+# Tapi ini tidak recommended, lebih baik fix .dockerignore
+```
+
+**Catatan:** File `.dockerignore` di repository sudah diupdate untuk tidak mengexclude `docker/svelte`. Pastikan Anda sudah pull latest changes sebelum build.
+
+**Prevention:** 
+- Jangan exclude folder `docker/` atau subfolder-nya di `.dockerignore` jika file-file tersebut diperlukan untuk Docker build
+- Gunakan pattern yang lebih spesifik jika perlu exclude file tertentu (misalnya: `docker/**/*.md` untuk exclude markdown files saja)
+
 ### Issue: Docker Build Error - composer dump-autoload Failed
 
 **Error:** `failed to solve: process "/bin/sh -c composer dump-autoload --optimize --classmap-authoritative --no-dev" did not complete successfully: exit code: 1`
@@ -1601,7 +1795,38 @@ sudo mv composer.phar /usr/local/bin/composer
 
 **Solusi:**
 
-**1. Build dengan --no-cache (Recommended):**
+**1. Pull Latest Changes dari Repository (CRITICAL - Lakukan ini dulu!):**
+
+```bash
+# Pull latest changes dari repository
+cd /var/www/app038
+
+# Check status dulu
+git status
+
+# Jika ada local changes yang conflict, pilih salah satu:
+# Opsi A: Discard local changes (Recommended - karena versi di repo sudah lebih baik)
+git checkout -- docker/php/Dockerfile
+git pull origin main
+
+# Opsi B: Stash local changes (jika ingin keep changes untuk review)
+git stash
+git pull origin main
+git stash pop  # Jika ingin apply changes kembali (biasanya tidak perlu)
+
+# Opsi C: Commit local changes dulu (jika ada perubahan penting)
+git add docker/php/Dockerfile
+git commit -m "temp: local Dockerfile changes"
+git pull origin main
+# Resolve conflicts jika ada
+
+# Verify Dockerfile sudah terupdate
+grep -A 10 "Generate optimized autoloader" docker/php/Dockerfile
+
+# Expected output harus menunjukkan multiple fallback commands dengan --ignore-platform-reqs
+```
+
+**2. Build dengan --no-cache (Setelah pull latest changes):**
 
 ```bash
 # Clean build tanpa cache
@@ -1609,15 +1834,42 @@ cd /var/www/app038
 docker-compose -f docker-compose.prod.yml build --no-cache laravel
 ```
 
-**2. Check dan fix Dockerfile (CRITICAL - Perlu diupdate):**
+**3. Handle Git Merge Conflicts (Jika pull gagal karena local changes):**
+
+**Error:** `error: Your local changes to the following files would be overwritten by merge`
+
+**Solusi:**
+
+```bash
+# Opsi A: Discard local changes (Recommended - versi di repo sudah lebih baik)
+cd /var/www/app038
+git checkout -- docker/php/Dockerfile
+git pull origin main
+
+# Opsi B: Stash local changes
+git stash
+git pull origin main
+# Jika tidak perlu local changes, bisa skip: git stash drop
+
+# Opsi C: Commit local changes dulu
+git add docker/php/Dockerfile
+git commit -m "temp: local Dockerfile changes"
+git pull origin main
+# Resolve conflicts jika ada, atau:
+# git checkout --theirs docker/php/Dockerfile  # Use version from repo
+# git add docker/php/Dockerfile
+# git commit -m "fix: use updated Dockerfile from repo"
+```
+
+**4. Check dan fix Dockerfile (Jika pull tidak berhasil atau perlu manual update):**
 
 Dockerfile sudah diupdate dengan multiple fallback approaches. **Pastikan menggunakan versi terbaru:**
 
 ```bash
-# Check Dockerfile line 140-146
-grep -A 6 "Generate optimized autoloader" docker/php/Dockerfile
+# Check Dockerfile line 140-149
+grep -A 10 "Generate optimized autoloader" docker/php/Dockerfile
 
-# Jika masih menggunakan command lama, update dengan:
+# Jika output menunjukkan command lama (tanpa multiple fallback), perlu update manual:
 nano docker/php/Dockerfile
 ```
 
@@ -1656,14 +1908,17 @@ ls -la composer.lock
 # Tapi untuk production, lebih baik gunakan --ignore-platform-reqs di Dockerfile
 ```
 
-**4. Build dengan verbose output untuk debug:**
+**4. Build dengan verbose output untuk debug (Jika masih error setelah pull):**
 
 ```bash
 # Build dengan progress plain untuk melihat detail error
 docker-compose -f docker-compose.prod.yml build --progress=plain laravel 2>&1 | tee build.log
 
 # Check error di log
-tail -50 build.log | grep -i error
+tail -100 build.log | grep -i error
+
+# Check detail error dari composer
+grep -A 30 "composer dump-autoload" build.log | tail -40
 ```
 
 **5. Alternative: Build manual dengan Docker:**
@@ -1728,6 +1983,55 @@ grep -i "permission\|denied\|missing\|not found" build-full.log
 
 **Catatan:** Dockerfile sudah diupdate dengan multiple fallback approaches. **Pastikan menggunakan versi terbaru dari repository atau update manual sesuai instruksi di atas.**
 
+### Issue: Docker Run Error - Image Not Found
+
+**Error:** `Unable to find image 'artisan:latest' locally` atau `pull access denied for artisan`
+
+**Penyebab:**
+- Command untuk extract image name dari docker-compose tidak bekerja dengan benar
+- Image name yang digunakan salah
+- Image belum di-build
+
+**Solusi:**
+
+**1. Generate APP_KEY Manual (Paling Simple - Recommended):**
+
+```bash
+# Generate APP_KEY tanpa Docker/PHP
+cd /var/www/app038
+APP_KEY_VALUE=$(openssl rand -base64 32)
+sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+echo "APP_KEY generated: base64:${APP_KEY_VALUE}"
+grep APP_KEY .env
+```
+
+**2. Generate dengan PHP Docker Image (Jika perlu menggunakan artisan):**
+
+```bash
+# Gunakan PHP image langsung
+cd /var/www/app038
+docker run --rm -v $(pwd):/app -w /app \
+  php:8.2-cli-alpine \
+  sh -c "composer install --ignore-platform-reqs --no-dev --no-scripts && php artisan key:generate --show"
+
+# Copy output ke .env file
+```
+
+**3. Build Image Dulu, Lalu Generate:**
+
+```bash
+# Build image dulu
+cd /var/www/app038
+docker-compose -f docker-compose.prod.yml build laravel
+
+# Generate APP_KEY menggunakan image yang sudah di-build
+docker run --rm -v $(pwd):/app -w /app \
+  app038_laravel:latest \
+  php artisan key:generate --show
+```
+
+**Catatan:** Method 1 (Generate Manual) adalah yang paling simple dan tidak perlu build Docker image atau install PHP. Recommended untuk production deployment.
+
 ### Issue: PHP Version Mismatch (Composer Platform Check)
 
 **Error:** `Your Composer dependencies require a PHP version ">= 8.4.0". You are running 8.3.6.`
@@ -1776,14 +2080,22 @@ php8.4 artisan key:generate
 **3. Generate dengan Docker (Tidak perlu install PHP di host):**
 
 ```bash
-# Build image dulu (jika belum)
+# Method 1: Gunakan PHP image langsung (Simple)
 cd /var/www/app038
-docker-compose -f docker-compose.prod.yml build laravel
-
-# Generate APP_KEY dengan Docker
 docker run --rm -v $(pwd):/app -w /app \
   php:8.2-cli-alpine \
-  sh -c "composer install --ignore-platform-reqs && php artisan key:generate --show"
+  sh -c "composer install --ignore-platform-reqs --no-dev --no-scripts && php artisan key:generate --show"
+
+# Method 2: Build image dulu, lalu generate (jika image sudah di-build)
+docker-compose -f docker-compose.prod.yml build laravel
+docker run --rm -v $(pwd):/app -w /app \
+  app038_laravel:latest \
+  php artisan key:generate --show
+
+# Method 3: Generate manual (Paling Simple - Recommended)
+APP_KEY_VALUE=$(openssl rand -base64 32)
+sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+grep APP_KEY .env
 ```
 
 **4. Skip Platform Check (Temporary):**

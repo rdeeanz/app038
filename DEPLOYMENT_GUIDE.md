@@ -913,12 +913,94 @@ openssl rand -base64 32
 
 **PENTING:** Simpan APP_KEY dengan aman! Key ini digunakan untuk encrypt session dan data sensitif.
 
-**3.4. Configure Volumes (Opsional)**
+**3.4. Verify dokploy-network (PENTING - Lakukan Sebelum Deployment)**
 
-Dokploy akan otomatis membuat volumes di `../files/app038/`. Jika perlu custom volumes:
+**PENTING:** Dokploy otomatis membuat network `dokploy-network` saat install. Pastikan network ini sudah ada sebelum deployment:
 
-1. Klik **"Advanced"** → **"Volumes"**
+```bash
+# SSH ke VPS
+ssh root@168.231.118.3
+
+# Check apakah dokploy-network sudah ada
+docker network ls | grep dokploy-network
+
+# Expected output:
+# dokploy-network   bridge    local
+
+# Jika network tidak ada, Dokploy mungkin belum fully started
+# Tunggu beberapa detik dan check lagi, atau restart Dokploy:
+cd /path/to/dokploy
+docker-compose restart
+
+# Verify network details
+docker network inspect dokploy-network
+```
+
+**Troubleshooting jika dokploy-network tidak ada:**
+
+1. **Dokploy belum fully started:**
+   ```bash
+   # Check Dokploy containers
+   cd /path/to/dokploy
+   docker-compose ps
+   
+   # Semua containers harus "Up" atau "Up (healthy)"
+   # Jika ada yang "Restarting" atau "Exited", check logs:
+   docker-compose logs
+   ```
+
+2. **Network tidak dibuat otomatis:**
+   ```bash
+   # Create network manually (jika diperlukan)
+   docker network create dokploy-network
+   
+   # Verify
+   docker network ls | grep dokploy-network
+   ```
+
+**Catatan:** Network `dokploy-network` adalah external network yang dibuat oleh Dokploy. Semua services di docker-compose harus menggunakan network ini untuk komunikasi dengan Traefik dan services lain.
+
+**3.5. Configure Volumes (Opsional)**
+
+Dokploy akan otomatis membuat volumes di `../files/app038/`. Path `../files/` adalah relative path dari project directory di Dokploy.
+
+**Penjelasan Volume Paths:**
+
+- `../files/app038/storage` → Dokploy akan membuat directory di `/path/to/dokploy/files/app038/storage`
+- `../files/app038/postgres` → Dokploy akan membuat directory di `/path/to/dokploy/files/app038/postgres`
+- `../files/app038/redis` → Dokploy akan membuat directory di `/path/to/dokploy/files/app038/redis`
+- `../files/app038/rabbitmq` → Dokploy akan membuat directory di `/path/to/dokploy/files/app038/rabbitmq`
+
+**Mengapa menggunakan `../files/`?**
+
+- ✅ Dokploy otomatis manage directory ini
+- ✅ Data persistent across deployments
+- ✅ Backup lebih mudah (semua data di satu tempat)
+- ✅ Relative path memudahkan portability
+
+**Jika perlu custom volumes:**
+
+1. Klik **"Advanced"** → **"Volumes"** di Dokploy UI
 2. Tambahkan volume mounts jika diperlukan
+3. Atau edit docker-compose langsung di Dokploy UI
+
+**3.6. File Mount Feature (Opsional - Untuk Config Files)**
+
+Jika Anda perlu mount config files dari Dokploy File Manager:
+
+1. Di Dokploy UI, buat file via **"File Mount"** feature
+2. File akan tersimpan di `/files/` directory
+3. Reference file di docker-compose:
+
+```yaml
+volumes:
+  - ../files/my-config.json:/etc/my-app/config.json
+```
+
+**Contoh penggunaan:**
+- Mount `.env` file (jika tidak menggunakan environment variables)
+- Mount SSL certificates (jika custom certificates)
+- Mount config files untuk services
 
 #### Step 4: Setup Domain di Dokploy
 
@@ -1063,7 +1145,37 @@ curl -I http://yourdomain.com
 3. Tunggu deployment selesai (bisa 5-15 menit tergantung build time)
 4. Monitor progress di **"Deployments"** tab
 
-**6.2. Check Deployment Status**
+**6.2. Verify dokploy-network Before Deployment (PENTING)**
+
+Sebelum deployment, pastikan dokploy-network sudah tersedia:
+
+```bash
+# Via SSH ke VPS (jika perlu verify manual)
+ssh root@168.231.118.3
+
+# Check network
+docker network ls | grep dokploy-network
+
+# Expected: dokploy-network harus ada
+# Jika tidak ada, deployment akan gagal dengan error:
+# "network dokploy-network declared as external, but could not be found"
+```
+
+**Jika network tidak ada:**
+
+1. **Dokploy belum fully started:**
+   - Tunggu beberapa menit setelah install Dokploy
+   - Check Dokploy containers: `docker ps | grep dokploy`
+   - Restart Dokploy jika perlu: `cd /path/to/dokploy && docker-compose restart`
+
+2. **Create network manually (last resort):**
+   ```bash
+   docker network create dokploy-network
+   ```
+
+**Catatan:** Dokploy otomatis membuat network ini saat install. Jika network tidak ada, ada kemungkinan Dokploy belum fully started atau ada issue dengan installasi.
+
+**6.3. Check Deployment Status**
 
 1. Klik **"Deployments"** tab atau **"Logs"** tab
 2. Monitor deployment progress:
@@ -1089,19 +1201,39 @@ curl -I http://yourdomain.com
 
 Jika deployment gagal, check:
 1. **Build Errors:**
+   - **Error: "docker/svelte/default.conf: not found"**
+     - **Penyebab:** File `.dockerignore` mengexclude folder `docker/svelte`
+     - **Solusi:** 
+       1. Pull latest changes: `git pull origin main` (file sudah diupdate)
+       2. Verify `.dockerignore` tidak mengexclude `docker/svelte`
+       3. Rebuild: `docker-compose build --no-cache svelte`
    - Check Dockerfile syntax
    - Verify build context dan paths
    - Check disk space: `df -h`
+   - Check Docker build logs di Dokploy UI
 
-2. **Container Startup Errors:**
+2. **Network Errors:**
+   - **Error: "network dokploy-network declared as external, but could not be found"**
+     - **Solusi:** Verify dokploy-network sudah dibuat (lihat Step 6.2)
+     - Check: `docker network ls | grep dokploy-network`
+     - Jika tidak ada, restart Dokploy atau create network manually
+   
+   - **Error: "Cannot connect to dokploy-network"**
+     - **Solusi:** Check Dokploy containers running
+     - Restart Dokploy: `cd /path/to/dokploy && docker-compose restart`
+
+3. **Container Startup Errors:**
    - Check environment variables (semua required vars sudah di-set?)
    - Check network connectivity (dokploy-network exists?)
    - Check port conflicts
+   - Verify volumes paths (../files/app038/...)
+   - Check container logs di Dokploy UI
 
-3. **Health Check Failures:**
+4. **Health Check Failures:**
    - Verify health endpoint exists: `/health`
    - Check application logs
    - Verify dependencies (database, redis, dll) sudah running
+   - Check health check configuration di docker-compose
 
 #### Step 7: Setup Database
 
@@ -1325,10 +1457,15 @@ docker-compose restart
 
 1. Check logs di **"Deployments"** tab
 2. Common issues:
-   - Build errors: Check Dockerfile
-   - Environment variables missing: Add di Dokploy UI
-   - Port conflicts: Check port configuration
-   - Network issues: Verify `dokploy-network` exists
+   - **Build errors:** Check Dockerfile, build context, disk space
+   - **Environment variables missing:** Add di Dokploy UI
+   - **Port conflicts:** Check port configuration (gunakan `ports: - "80"` format, bukan `80:80`)
+   - **Network issues:** 
+     - Error: "network dokploy-network declared as external, but could not be found"
+     - **Solusi:** Verify dokploy-network exists: `docker network ls | grep dokploy-network`
+     - Jika tidak ada, restart Dokploy atau create manually: `docker network create dokploy-network`
+   - **Volume path errors:** Pastikan menggunakan `../files/app038/...` format
+   - **Health check failures:** Verify `/health` endpoint exists dan accessible
 
 **Issue: SSL certificate tidak terbit**
 
@@ -1415,6 +1552,7 @@ services:
 - [ ] GitHub repository sudah di-connect (atau manual upload)
 - [ ] Docker Compose file (`docker-compose.dokploy.yml`) sudah dikonfigurasi
 - [ ] Domain names sudah diganti di Traefik labels (ganti `yourdomain.com`)
+- [ ] **dokploy-network sudah terverifikasi ada** (check dengan: `docker network ls | grep dokploy-network`)
 
 **Configuration:**
 - [ ] Environment variables sudah di-set (APP_KEY, DB_PASSWORD, dll)

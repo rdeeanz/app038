@@ -39,7 +39,8 @@ tests
 !README.md
 
 # Docker files (except the one we're using)
-docker/svelte
+# Note: docker/svelte is needed for Svelte Dockerfile build (contains nginx.conf and default.conf)
+# docker/svelte  # Commented out - needed for Docker build
 docker-compose.yml
 docker-compose.prod.yml
 Dockerfile
