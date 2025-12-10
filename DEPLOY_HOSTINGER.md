@@ -3102,6 +3102,166 @@ docker exec app038_laravel env | grep DB_HOST
 - Check network connectivity sebelum troubleshooting lebih lanjut
 - **Selalu verify environment variables di container setelah restart** dengan: `docker exec app038_laravel env | grep DB_HOST`
 
+### Issue: Konfigurasi .env Salah untuk Production
+
+**Error:** Konfigurasi `.env` masih menggunakan development values (APP_ENV=local, APP_URL=http://localhost:8000)
+
+**Cek Konfigurasi .env yang Benar untuk Production:**
+
+```bash
+# Check current .env values
+cd /var/www/app038
+grep -E "APP_ENV|APP_URL|APP_DEBUG" .env
+```
+
+**Expected Values untuk Production:**
+- ✅ `APP_ENV=production` (BUKAN `local`)
+- ✅ `APP_DEBUG=false` (BUKAN `true`)
+- ✅ `APP_URL=http://168.231.118.3` atau `APP_URL=https://yourdomain.com` (BUKAN `http://localhost:8000`)
+
+**Fix Konfigurasi .env:**
+
+```bash
+# Navigate ke project directory
+cd /var/www/app038
+
+# Fix APP_ENV
+sed -i 's/^APP_ENV=.*/APP_ENV=production/' .env
+# Atau jika baris tidak ada:
+if ! grep -q "^APP_ENV=" .env; then
+    echo "APP_ENV=production" >> .env
+fi
+
+# Fix APP_DEBUG
+sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' .env
+# Atau jika baris tidak ada:
+if ! grep -q "^APP_DEBUG=" .env; then
+    echo "APP_DEBUG=false" >> .env
+fi
+
+# Fix APP_URL (gunakan IP VPS atau domain Anda)
+sed -i 's|^APP_URL=.*|APP_URL=http://168.231.118.3|' .env
+# Atau jika punya domain:
+# sed -i 's|^APP_URL=.*|APP_URL=https://yourdomain.com|' .env
+# Atau jika baris tidak ada:
+if ! grep -q "^APP_URL=" .env; then
+    echo "APP_URL=http://168.231.118.3" >> .env
+fi
+
+# Verify fixes
+echo "=== Verifikasi Konfigurasi .env ==="
+grep -E "APP_ENV|APP_URL|APP_DEBUG" .env
+echo ""
+echo "Expected output:"
+echo "APP_ENV=production"
+echo "APP_DEBUG=false"
+echo "APP_URL=http://168.231.118.3"
+```
+
+**Setelah Fix, Restart Container:**
+
+```bash
+# Stop Laravel container
+docker-compose -f docker-compose.prod.yml stop laravel
+
+# Start Laravel container lagi (akan load .env baru)
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Wait untuk container ready
+sleep 10
+
+# Verify environment variables di container
+docker exec app038_laravel env | grep -E "APP_ENV|APP_URL|APP_DEBUG"
+# Expected:
+# APP_ENV=production
+# APP_DEBUG=false
+# APP_URL=http://168.231.118.3
+```
+
+**Complete .env Template untuk Production (VPS Hostinger):**
+
+```bash
+# Buat backup .env lama
+cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+
+# Create .env baru dengan konfigurasi production
+cat > .env << 'EOF'
+# Application Configuration
+APP_NAME=App038
+APP_ENV=production
+APP_KEY=
+APP_DEBUG=false
+APP_URL=http://168.231.118.3
+# Atau jika punya domain: APP_URL=https://yourdomain.com
+
+LOG_CHANNEL=stack
+LOG_LEVEL=info
+
+# Database Configuration (PostgreSQL)
+# PENTING: DB_HOST harus "postgres" (service name), BUKAN "localhost"
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_PORT=5432
+DB_DATABASE=app038
+DB_USERNAME=postgres
+DB_PASSWORD=your_secure_password_here
+
+# Redis Configuration
+# PENTING: REDIS_HOST harus "redis" (service name), BUKAN "localhost"
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password_here
+REDIS_DB=0
+
+# Cache & Session
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+SESSION_LIFETIME=120
+
+# Queue Configuration
+QUEUE_CONNECTION=rabbitmq
+
+# RabbitMQ Configuration
+# PENTING: RABBITMQ_HOST harus "rabbitmq" (service name), BUKAN "localhost"
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=your_rabbitmq_password_here
+RABBITMQ_VHOST=/
+
+# Mail Configuration (sesuaikan dengan provider email Anda)
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_ENCRYPTION=null
+MAIL_FROM_ADDRESS="noreply@yourdomain.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
+# Sanctum Configuration (jika menggunakan API)
+SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,168.231.118.3
+EOF
+
+# Generate APP_KEY jika belum ada
+if ! grep -q "^APP_KEY=base64:" .env; then
+    APP_KEY_VALUE=$(openssl rand -base64 32)
+    sed -i "s/^APP_KEY=.*/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+fi
+
+# Verify .env
+echo "=== Verifikasi .env File ==="
+grep -E "APP_ENV|APP_URL|APP_DEBUG|DB_HOST|REDIS_HOST|RABBITMQ_HOST" .env
+```
+
+**Common Mistakes:**
+- ❌ `APP_ENV=local` → ✅ `APP_ENV=production`
+- ❌ `APP_DEBUG=true` → ✅ `APP_DEBUG=false`
+- ❌ `APP_URL=http://localhost:8000` → ✅ `APP_URL=http://168.231.118.3` atau domain Anda
+- ❌ `DB_HOST=localhost` → ✅ `DB_HOST=postgres`
+- ❌ `REDIS_HOST=localhost` → ✅ `REDIS_HOST=redis`
+- ❌ `RABBITMQ_HOST=localhost` → ✅ `RABBITMQ_HOST=rabbitmq`
+
 ### Issue: High Memory/CPU Usage
 
 ```bash
