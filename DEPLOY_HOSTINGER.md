@@ -6,7 +6,7 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 ---
 
-## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 14:50 UTC)
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 15:55 UTC)
 
 ### 📊 Status VPS Hostinger:
 | Item | Value |
@@ -25,7 +25,6 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 | app038_postgres | ✅ Up (healthy) | 5432 | PostgreSQL Database |
 | app038_redis | ✅ Up (healthy) | 6379 | Redis Cache |
 | app038_rabbitmq | ✅ Up (healthy) | 5672 | RabbitMQ Queue |
-| app038_svelte | ❌ DIHAPUS | - | **TIDAK DIPERLUKAN** - Lihat penjelasan di bawah |
 
 ### 🔍 Arsitektur Aplikasi (PENTING!)
 
@@ -39,7 +38,7 @@ Artinya:
 
 ```
 Arsitektur Benar:
-Internet → Nginx (Host) → Laravel Container (port 8080) → PostgreSQL/Redis/RabbitMQ
+Internet → Nginx (Host:80) → Laravel Container (8080:80) → PostgreSQL/Redis/RabbitMQ
 ```
 
 ### ⚠️ Masalah Saat Ini:
@@ -47,118 +46,88 @@ Internet → Nginx (Host) → Laravel Container (port 8080) → PostgreSQL/Redis
 **Laravel Return 500 Internal Server Error**
 - **Gejala:** `curl http://localhost:8080/` → `500 Internal Server Error`
 - **Health check:** `curl http://localhost:8080/health` → `healthy` ✅
-- **Penyebab kemungkinan:**
-  1. Database migrations belum dijalankan
-  2. Vite assets belum di-build
-  3. Cache/config error
-  4. Permission issue pada storage folder
 
-### 🚨 LANGKAH-LANGKAH FIX YANG HARUS DILAKUKAN:
+**Masalah yang sudah teridentifikasi:**
+
+1. ✅ **Database** - Sudah terhubung (`DB OK`)
+2. ✅ **Migrations** - Sudah dijalankan
+3. ✅ **Vite Build** - Sudah berhasil di host (`public/build/` ada)
+4. ❌ **`.dockerignore` exclude `public/build`** - Assets tidak ter-copy ke container → **SUDAH DIPERBAIKI**
+5. ❌ **Inertia SSR enabled** - Mencoba connect ke SSR server yang tidak ada → **config/inertia.php sudah ditambahkan**
+
+### 🚨 LANGKAH-LANGKAH FIX (FINAL):
 
 **Jalankan perintah berikut di VPS Hostinger:**
 
 ```bash
 # ========================================
-# STEP 1: DIAGNOSTIC - Check Laravel Error
+# COMPLETE FIX SCRIPT
 # ========================================
 cd /var/www/app038
 
-# Check Laravel logs
-echo "=== Laravel Error Logs ==="
-docker exec app038_laravel tail -50 /app/storage/logs/laravel.log 2>/dev/null || \
-docker exec app038_laravel cat /var/log/nginx/error.log 2>/dev/null | tail -20
+# Step 1: Pull latest changes (includes .dockerignore fix & config/inertia.php)
+git pull origin main
 
-# ========================================
-# STEP 2: RUN MIGRATIONS
-# ========================================
-echo ""
-echo "=== Running Migrations ==="
-docker exec app038_laravel php artisan migrate --force
+# Step 2: Build Vite assets on host
+npm install
+npm run build
 
-# ========================================
-# STEP 3: BUILD VITE ASSETS
-# ========================================
-echo ""
-echo "=== Building Vite Assets ==="
-docker exec app038_laravel npm install 2>/dev/null || echo "npm not in container, checking..."
-docker exec app038_laravel npm run build 2>/dev/null || echo "Build via container not available"
+# Step 3: Stop containers
+docker-compose -f docker-compose.prod.yml down
 
-# Alternative: Build locally and copy
-# npm run build
-# docker cp public/build app038_laravel:/app/public/
+# Step 4: Rebuild Laravel container (with Vite assets included)
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
 
-# ========================================
-# STEP 4: CLEAR LARAVEL CACHE
-# ========================================
-echo ""
-echo "=== Clearing Laravel Cache ==="
+# Step 5: Start containers
+docker-compose -f docker-compose.prod.yml up -d
+
+# Step 6: Wait for containers
+echo "⏳ Waiting 30 seconds..."
+sleep 30
+
+# Step 7: Check container status
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
+
+# Step 8: Verify Vite assets in container
+docker exec app038_laravel ls -la /app/public/build/
+
+# Step 9: Clear and optimize cache
 docker exec app038_laravel php artisan config:clear
 docker exec app038_laravel php artisan cache:clear
 docker exec app038_laravel php artisan view:clear
-docker exec app038_laravel php artisan route:clear
-
-# ========================================
-# STEP 5: FIX PERMISSIONS
-# ========================================
-echo ""
-echo "=== Fixing Permissions ==="
-docker exec app038_laravel chown -R www-data:www-data /app/storage
-docker exec app038_laravel chown -R www-data:www-data /app/bootstrap/cache
-docker exec app038_laravel chmod -R 775 /app/storage
-docker exec app038_laravel chmod -R 775 /app/bootstrap/cache
-
-# ========================================
-# STEP 6: GENERATE APP KEY (jika belum)
-# ========================================
-echo ""
-echo "=== Check/Generate App Key ==="
-docker exec app038_laravel php artisan key:generate --force
-
-# ========================================
-# STEP 7: OPTIMIZE FOR PRODUCTION
-# ========================================
-echo ""
-echo "=== Optimizing for Production ==="
 docker exec app038_laravel php artisan config:cache
 docker exec app038_laravel php artisan route:cache
-docker exec app038_laravel php artisan view:cache
 
-# ========================================
-# STEP 8: TEST
-# ========================================
-echo ""
-echo "=== Testing ==="
+# Step 10: Test
 curl -s http://localhost:8080/health
 curl -I http://localhost:8080/
 curl -I http://localhost/
+
+echo "✅ Test di browser: http://168.231.118.3"
 ```
 
 ### 📋 Quick Fix Script (Copy-Paste Semua):
 
 ```bash
 cd /var/www/app038 && \
-echo "=== Laravel Logs ===" && \
-docker exec app038_laravel tail -30 /app/storage/logs/laravel.log 2>/dev/null || echo "No logs" && \
-echo "" && \
-echo "=== Running Migrations ===" && \
-docker exec app038_laravel php artisan migrate --force && \
-echo "" && \
-echo "=== Clearing Cache ===" && \
+git pull origin main && \
+npm install && \
+npm run build && \
+docker-compose -f docker-compose.prod.yml down && \
+docker-compose -f docker-compose.prod.yml build --no-cache laravel && \
+docker-compose -f docker-compose.prod.yml up -d && \
+echo "⏳ Waiting 30 seconds..." && \
+sleep 30 && \
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038 && \
+docker exec app038_laravel ls -la /app/public/build/ && \
 docker exec app038_laravel php artisan config:clear && \
 docker exec app038_laravel php artisan cache:clear && \
-docker exec app038_laravel php artisan view:clear && \
-echo "" && \
-echo "=== Fixing Permissions ===" && \
-docker exec app038_laravel chown -R www-data:www-data /app/storage /app/bootstrap/cache && \
-docker exec app038_laravel chmod -R 775 /app/storage /app/bootstrap/cache && \
-echo "" && \
-echo "=== Optimizing ===" && \
 docker exec app038_laravel php artisan config:cache && \
 docker exec app038_laravel php artisan route:cache && \
+curl -s http://localhost:8080/health && \
 echo "" && \
-echo "=== Testing ===" && \
 curl -I http://localhost:8080/ && \
-curl -I http://localhost/
+echo "✅ Test: http://168.231.118.3"
 ```
 
 ### ✅ Setelah Fix Berhasil:

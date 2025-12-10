@@ -47,7 +47,7 @@ Dockerfile
 
 # Build artifacts
 public/hot
-public/build
+# public/build  # IMPORTANT: DO NOT EXCLUDE - Vite build assets needed for production
 public/mix-manifest.json
 
 # CI/CD
