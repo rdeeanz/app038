@@ -447,6 +447,7 @@ LOG_CHANNEL=stack
 LOG_LEVEL=info
 
 # Database Configuration (PostgreSQL)
+# PENTING: DB_HOST harus "postgres" (service name di docker-compose), BUKAN "localhost" atau "127.0.0.1"
 DB_CONNECTION=pgsql
 DB_HOST=postgres
 DB_PORT=5432
@@ -624,7 +625,34 @@ cat .env | grep -v "^#" | grep -v "^$"
 
 # Verify required variables
 grep -E "APP_KEY|DB_PASSWORD|REDIS_PASSWORD|RABBITMQ_PASSWORD" .env
+
+# PENTING: Verify service names (bukan localhost!)
+grep -E "DB_HOST|REDIS_HOST|RABBITMQ_HOST" .env
+
+# Expected output:
+# DB_HOST=postgres          # Harus "postgres" bukan "localhost"
+# REDIS_HOST=redis          # Harus "redis" bukan "localhost"
+# RABBITMQ_HOST=rabbitmq    # Harus "rabbitmq" bukan "localhost"
+
+# Jika salah, fix:
+sed -i 's/DB_HOST=.*/DB_HOST=postgres/' .env
+sed -i 's/REDIS_HOST=.*/REDIS_HOST=redis/' .env
+sed -i 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=rabbitmq/' .env
 ```
+
+**⚠️ PENTING: Service Names di Docker Compose**
+
+Di Docker Compose, services diakses menggunakan **service names** (nama service di docker-compose.yml), bukan `localhost`:
+
+- ✅ `DB_HOST=postgres` (benar - service name)
+- ❌ `DB_HOST=localhost` (salah - tidak akan connect)
+- ❌ `DB_HOST=127.0.0.1` (salah - tidak akan connect)
+
+- ✅ `REDIS_HOST=redis` (benar - service name)
+- ❌ `REDIS_HOST=localhost` (salah)
+
+- ✅ `RABBITMQ_HOST=rabbitmq` (benar - service name)
+- ❌ `RABBITMQ_HOST=localhost` (salah)
 
 ---
 
@@ -2729,19 +2757,218 @@ sudo certbot certificates
 
 ### Issue: Database Connection Failed
 
-```bash
-# Check PostgreSQL container
-docker ps | grep postgres
-docker logs app038_postgres
+**Error:** `SQLSTATE[08006] [7] connection to server at "localhost" (::1), port 5432 failed: Connection refused`
 
-# Test connection
-docker exec -it app038_laravel php artisan tinker
+**Penyebab:**
+- Laravel mencoba connect ke `localhost` bukan ke service name `postgres`
+- Environment variable `DB_HOST` tidak di-set dengan benar di `.env` file
+- Atau PostgreSQL container tidak running
+- Atau network connectivity issue
+
+**Solusi Step-by-Step:**
+
+**1. Check PostgreSQL Container Status (PENTING - Lakukan ini dulu!):**
+
+```bash
+# Check apakah PostgreSQL container running
+docker ps | grep app038_postgres
+
+# Expected output: Harus show "Up" status
+# Jika tidak ada atau status "Exited", start dulu:
+docker-compose -f docker-compose.prod.yml up -d postgres
+
+# Wait untuk PostgreSQL ready (10-30 detik)
+sleep 15
+
+# Check PostgreSQL logs
+docker logs app038_postgres --tail 50
+
+# Test PostgreSQL dari host
+docker exec app038_postgres pg_isready -U postgres
+# Expected: "postgres:5432 - accepting connections"
+```
+
+**2. Check Environment Variables di .env File:**
+
+```bash
+# Check DB_HOST di .env file
+grep DB_HOST .env
+
+# Expected: DB_HOST=postgres (bukan localhost atau 127.0.0.1)
+# Jika salah, fix:
+sed -i 's/DB_HOST=.*/DB_HOST=postgres/' .env
+
+# Verify semua database variables
+grep -E "DB_HOST|DB_PORT|DB_DATABASE|DB_USERNAME|DB_PASSWORD" .env
+
+# Expected output:
+# DB_HOST=postgres
+# DB_PORT=5432
+# DB_DATABASE=app038
+# DB_USERNAME=postgres
+# DB_PASSWORD=your_password_here
+```
+
+**3. Check Environment Variables di Container:**
+
+```bash
+# Check environment variables di Laravel container
+docker exec app038_laravel env | grep DB_
+
+# Expected output:
+# DB_CONNECTION=pgsql
+# DB_HOST=postgres
+# DB_PORT=5432
+# DB_DATABASE=app038
+# DB_USERNAME=postgres
+# DB_PASSWORD=your_password_here
+
+# Jika DB_HOST masih "localhost", restart container:
+docker-compose -f docker-compose.prod.yml restart laravel
+```
+
+**4. Test Network Connectivity:**
+
+```bash
+# Test ping dari Laravel container ke PostgreSQL
+docker exec app038_laravel ping -c 3 postgres
+
+# Expected: Harus bisa ping (3 packets transmitted, 3 received)
+# Jika tidak bisa ping, check network:
+docker network inspect app038_network
+
+# Verify Laravel dan PostgreSQL di network yang sama
+docker network inspect app038_network | grep -A 5 "app038_laravel\|app038_postgres"
+```
+
+**5. Test Database Connection Manual:**
+
+```bash
+# Test connection dari Laravel container
+docker exec app038_laravel php artisan tinker
+
+# Di dalam tinker, test connection:
 # DB::connection()->getPdo();
 # exit
 
-# Check environment variables
-docker exec app038_laravel env | grep DB_
+# Atau test dengan psql dari Laravel container (jika psql installed):
+docker exec app038_laravel sh -c "apk add --no-cache postgresql-client && psql -h postgres -U postgres -d app038 -c 'SELECT 1;'"
 ```
+
+**6. Fix .env File (Jika DB_HOST Salah):**
+
+```bash
+# Edit .env file
+nano .env
+
+# Pastikan baris berikut ada dan benar:
+# DB_CONNECTION=pgsql
+# DB_HOST=postgres          # PENTING: harus "postgres" bukan "localhost"
+# DB_PORT=5432
+# DB_DATABASE=app038
+# DB_USERNAME=postgres
+# DB_PASSWORD=your_strong_password_here
+
+# Save (Ctrl+X, Y, Enter)
+
+# Restart Laravel container untuk load environment variables baru
+docker-compose -f docker-compose.prod.yml restart laravel
+
+# Verify environment variables sudah terupdate
+docker exec app038_laravel env | grep DB_HOST
+# Expected: DB_HOST=postgres
+```
+
+**7. Complete Reset (Jika Masih Error):**
+
+```bash
+# Stop semua containers
+docker-compose -f docker-compose.prod.yml down
+
+# Check .env file
+cat .env | grep -E "DB_HOST|DB_PORT|DB_DATABASE|DB_USERNAME|DB_PASSWORD"
+
+# Fix .env jika perlu
+nano .env
+# Pastikan:
+# DB_HOST=postgres (bukan localhost)
+
+# Start PostgreSQL dulu
+docker-compose -f docker-compose.prod.yml up -d postgres
+
+# Wait untuk PostgreSQL ready
+sleep 20
+
+# Check PostgreSQL ready
+docker exec app038_postgres pg_isready -U postgres
+
+# Start Laravel
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Check logs
+docker logs app038_laravel --tail 50
+
+# Test migration
+docker exec -it app038_laravel php artisan migrate --force
+```
+
+**8. Verify Database Credentials:**
+
+```bash
+# Test connection dengan credentials dari .env
+DB_HOST=$(grep DB_HOST .env | cut -d '=' -f2)
+DB_PORT=$(grep DB_PORT .env | cut -d '=' -f2)
+DB_DATABASE=$(grep DB_DATABASE .env | cut -d '=' -f2)
+DB_USERNAME=$(grep DB_USERNAME .env | cut -d '=' -f2)
+DB_PASSWORD=$(grep DB_PASSWORD .env | cut -d '=' -f2)
+
+# Test dari PostgreSQL container
+docker exec app038_postgres psql -U $DB_USERNAME -d $DB_DATABASE -c "SELECT 1;"
+
+# Jika error, mungkin credentials salah atau database belum dibuat
+```
+
+**9. Create Database (Jika Database Tidak Ada):**
+
+```bash
+# Connect ke PostgreSQL
+docker exec -it app038_postgres psql -U postgres
+
+# Di dalam psql:
+# CREATE DATABASE app038;
+# \q
+
+# Atau dari command line:
+docker exec app038_postgres psql -U postgres -c "CREATE DATABASE app038;"
+```
+
+**Quick Diagnostic Commands:**
+
+```bash
+# One-liner untuk check semua database issues
+echo "=== PostgreSQL Container ===" && \
+docker ps | grep postgres && \
+echo -e "\n=== Environment Variables (.env) ===" && \
+grep -E "DB_HOST|DB_PORT|DB_DATABASE|DB_USERNAME" .env && \
+echo -e "\n=== Environment Variables (Container) ===" && \
+docker exec app038_laravel env | grep DB_ && \
+echo -e "\n=== Network Connectivity ===" && \
+docker exec app038_laravel ping -c 2 postgres && \
+echo -e "\n=== PostgreSQL Ready ===" && \
+docker exec app038_postgres pg_isready -U postgres
+```
+
+**Common Mistakes:**
+- ❌ `DB_HOST=localhost` → ✅ `DB_HOST=postgres`
+- ❌ `DB_HOST=127.0.0.1` → ✅ `DB_HOST=postgres`
+- ❌ PostgreSQL container tidak running
+- ❌ Network tidak sama antara Laravel dan PostgreSQL containers
+- ❌ Environment variables tidak di-pass ke container
+
+**Prevention:**
+- Pastikan `.env` file menggunakan service names (postgres, redis, rabbitmq) bukan localhost
+- Verify semua containers running sebelum run migration
+- Check network connectivity sebelum troubleshooting lebih lanjut
 
 ### Issue: High Memory/CPU Usage
 

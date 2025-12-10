@@ -1576,12 +1576,37 @@ docker-compose restart
 
 **Issue: Database connection failed**
 
-1. Check PostgreSQL container running
-2. Verify environment variables (DB_HOST, DB_PASSWORD, dll)
-3. Check network connectivity:
+**Error:** `SQLSTATE[08006] [7] connection to server at "localhost" (::1), port 5432 failed: Connection refused`
+
+**Penyebab:** Laravel mencoba connect ke `localhost` bukan ke service name `postgres`.
+
+**Quick Fix:**
+
+1. **Check DB_HOST di .env:**
    ```bash
-   docker exec app038_laravel ping postgres
+   grep DB_HOST .env
+   # Harus: DB_HOST=postgres (bukan localhost)
    ```
+
+2. **Fix .env jika salah:**
+   ```bash
+   sed -i 's/DB_HOST=.*/DB_HOST=postgres/' .env
+   docker-compose restart laravel
+   ```
+
+3. **Check PostgreSQL running:**
+   ```bash
+   docker ps | grep postgres
+   docker-compose up -d postgres
+   ```
+
+4. **Test connection:**
+   ```bash
+   docker exec app038_laravel env | grep DB_HOST
+   # Harus: DB_HOST=postgres
+   ```
+
+**Lihat `DEPLOY_HOSTINGER.md` section "Issue: Database Connection Failed" untuk troubleshooting lengkap.**
 
 #### Performance Optimization untuk Dokploy
 
