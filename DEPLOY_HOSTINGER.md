@@ -6,80 +6,179 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 ---
 
-## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025)
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 14:50 UTC)
 
-### Status Container:
-| Container | Status | Keterangan |
-|-----------|--------|------------|
-| app038_postgres | ✅ Up (healthy) | Database running |
-| app038_laravel | ✅ Up (healthy) | Backend running |
-| app038_rabbitmq | ✅ Up (healthy) | Message queue running |
-| app038_redis | ❌ Restarting | **PERLU FIX** - Password issue |
-| app038_svelte | ❌ NOT RUNNING | **PERLU FIX** - Upstream "backend" not found |
+### 📊 Status VPS Hostinger:
+| Item | Value |
+|------|-------|
+| IP Address | `168.231.118.3` |
+| Hostname | `srv1162366.hstgr.cloud` |
+| Domain | `vibeapps.cloud` |
+| OS | Ubuntu 24.04 LTS |
+| Resources | 2 CPUs, 8GB RAM, 100GB Disk |
+| State | ✅ Running |
 
-### Masalah Utama yang Ditemukan:
+### 📦 Status Container:
+| Container | Status | Port | Keterangan |
+|-----------|--------|------|------------|
+| app038_laravel | ✅ Up (healthy) | 8080:80 | Backend Laravel (PHP-FPM + Nginx) |
+| app038_postgres | ✅ Up (healthy) | 5432 | PostgreSQL Database |
+| app038_redis | ✅ Up (healthy) | 6379 | Redis Cache |
+| app038_rabbitmq | ✅ Up (healthy) | 5672 | RabbitMQ Queue |
+| app038_svelte | ❌ DIHAPUS | - | **TIDAK DIPERLUKAN** - Lihat penjelasan di bawah |
 
-**1. Svelte Container Crash - CRITICAL**
-- **Error:** `nginx: [emerg] host not found in upstream "backend" in /etc/nginx/conf.d/default.conf:34`
-- **Penyebab:** File `docker/svelte/default.conf` menggunakan `proxy_pass http://backend:80` tapi service name di docker-compose adalah `laravel`, bukan `backend`
-- **Status Fix:** ✅ **SUDAH DIPERBAIKI** - File `docker/svelte/default.conf` sudah diupdate menjadi `proxy_pass http://laravel:80`
+### 🔍 Arsitektur Aplikasi (PENTING!)
 
-**2. Redis Container Restarting**
-- **Error:** Container terus restart
-- **Penyebab:** Kemungkinan REDIS_PASSWORD tidak di-set dengan benar atau password mismatch
-- **Status Fix:** ⏳ Perlu verifikasi
+**Aplikasi ini menggunakan Laravel + Inertia.js + Svelte**, bukan standalone Svelte SPA.
 
-**3. Nginx 502 Bad Gateway**
-- **Error:** `502 Bad Gateway nginx/1.24.0 (Ubuntu)` saat akses `http://168.231.118.3/health`
-- **Penyebab:** Svelte container tidak running, sehingga Nginx tidak bisa proxy ke container
-- **Status Fix:** ⏳ Akan teratasi setelah fix #1 dan #2
+Artinya:
+- **Laravel** = serve semua (HTML + API + Assets)
+- **Svelte** = hanya component UI yang di-render oleh Laravel via Inertia.js
+- **Vite build** = menghasilkan assets ke `public/build/` (bukan standalone SPA)
+- **Svelte container TIDAK diperlukan** untuk production
+
+```
+Arsitektur Benar:
+Internet → Nginx (Host) → Laravel Container (port 8080) → PostgreSQL/Redis/RabbitMQ
+```
+
+### ⚠️ Masalah Saat Ini:
+
+**Laravel Return 500 Internal Server Error**
+- **Gejala:** `curl http://localhost:8080/` → `500 Internal Server Error`
+- **Health check:** `curl http://localhost:8080/health` → `healthy` ✅
+- **Penyebab kemungkinan:**
+  1. Database migrations belum dijalankan
+  2. Vite assets belum di-build
+  3. Cache/config error
+  4. Permission issue pada storage folder
 
 ### 🚨 LANGKAH-LANGKAH FIX YANG HARUS DILAKUKAN:
 
 **Jalankan perintah berikut di VPS Hostinger:**
 
 ```bash
-# Step 1: Pull latest changes dari repository (sudah ada fix untuk Svelte)
+# ========================================
+# STEP 1: DIAGNOSTIC - Check Laravel Error
+# ========================================
 cd /var/www/app038
-git pull origin main
 
-# Step 2: Fix Redis password (jika belum)
-# Check REDIS_PASSWORD di .env
-grep REDIS_PASSWORD .env
-# Jika kosong atau tidak ada, generate dan set:
-REDIS_PASS=$(openssl rand -base64 32)
-sed -i "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASS}/" .env
-echo "Generated REDIS_PASSWORD: ${REDIS_PASS}"
+# Check Laravel logs
+echo "=== Laravel Error Logs ==="
+docker exec app038_laravel tail -50 /app/storage/logs/laravel.log 2>/dev/null || \
+docker exec app038_laravel cat /var/log/nginx/error.log 2>/dev/null | tail -20
 
-# Step 3: Stop semua containers
-docker-compose -f docker-compose.prod.yml down
+# ========================================
+# STEP 2: RUN MIGRATIONS
+# ========================================
+echo ""
+echo "=== Running Migrations ==="
+docker exec app038_laravel php artisan migrate --force
 
-# Step 4: Rebuild Svelte container (karena ada perubahan config)
-docker-compose -f docker-compose.prod.yml build --no-cache svelte
+# ========================================
+# STEP 3: BUILD VITE ASSETS
+# ========================================
+echo ""
+echo "=== Building Vite Assets ==="
+docker exec app038_laravel npm install 2>/dev/null || echo "npm not in container, checking..."
+docker exec app038_laravel npm run build 2>/dev/null || echo "Build via container not available"
 
-# Step 5: Start semua containers
-docker-compose -f docker-compose.prod.yml up -d
+# Alternative: Build locally and copy
+# npm run build
+# docker cp public/build app038_laravel:/app/public/
 
-# Step 6: Wait untuk containers ready
-sleep 30
+# ========================================
+# STEP 4: CLEAR LARAVEL CACHE
+# ========================================
+echo ""
+echo "=== Clearing Laravel Cache ==="
+docker exec app038_laravel php artisan config:clear
+docker exec app038_laravel php artisan cache:clear
+docker exec app038_laravel php artisan view:clear
+docker exec app038_laravel php artisan route:clear
 
-# Step 7: Check status semua containers
-docker ps
+# ========================================
+# STEP 5: FIX PERMISSIONS
+# ========================================
+echo ""
+echo "=== Fixing Permissions ==="
+docker exec app038_laravel chown -R www-data:www-data /app/storage
+docker exec app038_laravel chown -R www-data:www-data /app/bootstrap/cache
+docker exec app038_laravel chmod -R 775 /app/storage
+docker exec app038_laravel chmod -R 775 /app/bootstrap/cache
 
-# Step 8: Test health endpoint
-curl http://localhost/health
-# Expected: "healthy" atau HTTP 200
+# ========================================
+# STEP 6: GENERATE APP KEY (jika belum)
+# ========================================
+echo ""
+echo "=== Check/Generate App Key ==="
+docker exec app038_laravel php artisan key:generate --force
 
-# Step 9: Test dari browser
-# Buka: http://168.231.118.3
-# Buka: http://vibeapps.cloud
+# ========================================
+# STEP 7: OPTIMIZE FOR PRODUCTION
+# ========================================
+echo ""
+echo "=== Optimizing for Production ==="
+docker exec app038_laravel php artisan config:cache
+docker exec app038_laravel php artisan route:cache
+docker exec app038_laravel php artisan view:cache
+
+# ========================================
+# STEP 8: TEST
+# ========================================
+echo ""
+echo "=== Testing ==="
+curl -s http://localhost:8080/health
+curl -I http://localhost:8080/
+curl -I http://localhost/
 ```
 
-### Setelah Fix Berhasil:
+### 📋 Quick Fix Script (Copy-Paste Semua):
+
+```bash
+cd /var/www/app038 && \
+echo "=== Laravel Logs ===" && \
+docker exec app038_laravel tail -30 /app/storage/logs/laravel.log 2>/dev/null || echo "No logs" && \
+echo "" && \
+echo "=== Running Migrations ===" && \
+docker exec app038_laravel php artisan migrate --force && \
+echo "" && \
+echo "=== Clearing Cache ===" && \
+docker exec app038_laravel php artisan config:clear && \
+docker exec app038_laravel php artisan cache:clear && \
+docker exec app038_laravel php artisan view:clear && \
+echo "" && \
+echo "=== Fixing Permissions ===" && \
+docker exec app038_laravel chown -R www-data:www-data /app/storage /app/bootstrap/cache && \
+docker exec app038_laravel chmod -R 775 /app/storage /app/bootstrap/cache && \
+echo "" && \
+echo "=== Optimizing ===" && \
+docker exec app038_laravel php artisan config:cache && \
+docker exec app038_laravel php artisan route:cache && \
+echo "" && \
+echo "=== Testing ===" && \
+curl -I http://localhost:8080/ && \
+curl -I http://localhost/
+```
+
+### ✅ Setelah Fix Berhasil:
 
 Website akan bisa diakses di:
 - **Via IP:** http://168.231.118.3
 - **Via Domain:** http://vibeapps.cloud (jika DNS sudah pointing)
+
+### 🔐 Setup SSL (Setelah Website Berjalan):
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# Get SSL Certificate
+sudo certbot --nginx -d vibeapps.cloud -d www.vibeapps.cloud
+
+# Test auto-renewal
+sudo certbot renew --dry-run
+```
 
 ---
 
@@ -99,48 +198,53 @@ Website akan bisa diakses di:
 
 ### Arsitektur Deployment
 
+> **⚠️ PENTING:** Aplikasi ini menggunakan **Laravel + Inertia.js + Svelte** (Monolith), 
+> bukan standalone Svelte SPA. Laravel serve semua: HTML, API, dan Assets.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Internet / Users                          │
+│              http://168.231.118.3 / vibeapps.cloud           │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Nginx Reverse Proxy (Port 80/443)               │
-│              SSL Termination (Let's Encrypt)                 │
+│              Nginx Reverse Proxy (Host)                      │
+│              Port 80 → proxy_pass localhost:8080             │
+│              SSL via Let's Encrypt (Optional)                │
 └───────────────────────┬─────────────────────────────────────┘
                         │
-        ┌───────────────┴───────────────┐
-        │                               │
-        ▼                               ▼
-┌──────────────────┐          ┌──────────────────┐
-│  Svelte Container │          │  Laravel Container│
-│  (Frontend)       │          │  (Backend API)    │
-│  Port: 80         │          │  Port: 80         │
-└────────┬──────────┘          └────────┬──────────┘
-         │                               │
-         └────────┬────────┬─────────────┘
-                  │        │
-        ┌─────────▼───┐ ┌──▼──────────┐
-        │   Redis     │ │  RabbitMQ   │
-        │   (Cache)   │ │  (Queue)    │
-        └─────────────┘ └─────────────┘
-                  │
-                  ▼
-        ┌──────────────────┐
-        │  PostgreSQL       │
-        │  (Database)        │
-        └──────────────────┘
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Laravel Container (app038_laravel)              │
+│              PHP-FPM + Nginx (Internal)                      │
+│              Port: 8080:80                                   │
+│                                                              │
+│              Serves:                                         │
+│              • HTML (via Inertia.js + Svelte components)     │
+│              • API Endpoints (/api/*)                        │
+│              • Static Assets (/build/*)                      │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+        ▼               ▼               ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│  PostgreSQL  │ │    Redis     │ │  RabbitMQ    │
+│  (Database)  │ │   (Cache)    │ │   (Queue)    │
+│  Port: 5432  │ │  Port: 6379  │ │  Port: 5672  │
+└──────────────┘ └──────────────┘ └──────────────┘
 ```
 
 ### Teknologi Stack
 
-- **Backend:** Laravel 11 LTS (PHP 8.2)
-- **Frontend:** Svelte 4 dengan Inertia.js
+- **Backend:** Laravel 11 LTS (PHP 8.2+)
+- **Frontend:** Svelte 4 + Inertia.js (rendered by Laravel)
+- **Build Tool:** Vite (assets di `public/build/`)
 - **Database:** PostgreSQL 15
-- **Cache:** Redis 7
+- **Cache/Session:** Redis 7
 - **Queue:** RabbitMQ 3
-- **Web Server:** Nginx (reverse proxy)
+- **Web Server:** Nginx (host as reverse proxy, container for PHP-FPM)
 - **SSL:** Let's Encrypt (Certbot)
 - **Container:** Docker & Docker Compose
 

@@ -1,31 +1,50 @@
 version: '3.8'
 
+# =============================================================================
+# App038 Production Docker Compose
+# Architecture: Laravel + Inertia.js + Svelte (Monolith)
+# 
+# CATATAN PENTING:
+# - Aplikasi ini menggunakan Laravel + Inertia.js + Svelte
+# - BUKAN standalone Svelte SPA
+# - Laravel serve semua: HTML, API, dan Assets (via Vite build)
+# - Svelte container TIDAK diperlukan untuk production
+# =============================================================================
+
 services:
-  # Laravel PHP-FPM Application
+  # Laravel PHP-FPM Application (Main Application Server)
   laravel:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
     container_name: app038_laravel
     restart: unless-stopped
+    ports:
+      - "8080:80"
     environment:
+      - APP_NAME=${APP_NAME:-App038}
       - APP_ENV=production
+      - APP_KEY=${APP_KEY}
       - APP_DEBUG=false
+      - APP_URL=${APP_URL:-http://localhost}
+      - LOG_CHANNEL=stack
+      - LOG_LEVEL=error
       - DB_CONNECTION=pgsql
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_DATABASE=${DB_DATABASE}
-      - DB_USERNAME=${DB_USERNAME}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-app038}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - CACHE_DRIVER=redis
       - SESSION_DRIVER=redis
+      - SESSION_LIFETIME=120
       - QUEUE_CONNECTION=rabbitmq
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     volumes:
       - ./storage:/app/storage
@@ -33,9 +52,12 @@ services:
     networks:
       - app038_network
     depends_on:
-      - postgres
-      - redis
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
@@ -43,46 +65,26 @@ services:
       retries: 3
       start_period: 40s
 
-  # Svelte Frontend
-  svelte:
-    build:
-      context: .
-      dockerfile: docker/svelte/Dockerfile
-    container_name: app038_svelte
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    networks:
-      - app038_network
-    depends_on:
-      - laravel
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: app038_postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=${DB_DATABASE}
-      - POSTGRES_USER=${DB_USERNAME}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:-app038}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app038_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-app038}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Redis Cache
+  # Redis Cache & Session Store
   redis:
     image: redis:7-alpine
     container_name: app038_redis
@@ -93,7 +95,7 @@ services:
     networks:
       - app038_network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -104,7 +106,7 @@ services:
     container_name: app038_rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
       RABBITMQ_DEFAULT_VHOST: /
     volumes:
@@ -119,10 +121,13 @@ services:
 
 volumes:
   postgres_data:
+    name: app038_postgres_data
   redis_data:
+    name: app038_redis_data
   rabbitmq_data:
+    name: app038_rabbitmq_data
 
 networks:
   app038_network:
-    external: true
-
+    name: app038_network
+    driver: bridge
