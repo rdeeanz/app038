@@ -4,6 +4,85 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 > **📌 Informasi VPS Anda:** VPS Hostinger (IP: `168.231.118.3`, Hostname: `srv1162366.hstgr.cloud`) sudah terverifikasi. Spesifikasi: 2 CPUs, 8GB RAM, 100GB Disk, Ubuntu 24.04 LTS - **Sangat cukup untuk production!**
 
+---
+
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025)
+
+### Status Container:
+| Container | Status | Keterangan |
+|-----------|--------|------------|
+| app038_postgres | ✅ Up (healthy) | Database running |
+| app038_laravel | ✅ Up (healthy) | Backend running |
+| app038_rabbitmq | ✅ Up (healthy) | Message queue running |
+| app038_redis | ❌ Restarting | **PERLU FIX** - Password issue |
+| app038_svelte | ❌ NOT RUNNING | **PERLU FIX** - Upstream "backend" not found |
+
+### Masalah Utama yang Ditemukan:
+
+**1. Svelte Container Crash - CRITICAL**
+- **Error:** `nginx: [emerg] host not found in upstream "backend" in /etc/nginx/conf.d/default.conf:34`
+- **Penyebab:** File `docker/svelte/default.conf` menggunakan `proxy_pass http://backend:80` tapi service name di docker-compose adalah `laravel`, bukan `backend`
+- **Status Fix:** ✅ **SUDAH DIPERBAIKI** - File `docker/svelte/default.conf` sudah diupdate menjadi `proxy_pass http://laravel:80`
+
+**2. Redis Container Restarting**
+- **Error:** Container terus restart
+- **Penyebab:** Kemungkinan REDIS_PASSWORD tidak di-set dengan benar atau password mismatch
+- **Status Fix:** ⏳ Perlu verifikasi
+
+**3. Nginx 502 Bad Gateway**
+- **Error:** `502 Bad Gateway nginx/1.24.0 (Ubuntu)` saat akses `http://168.231.118.3/health`
+- **Penyebab:** Svelte container tidak running, sehingga Nginx tidak bisa proxy ke container
+- **Status Fix:** ⏳ Akan teratasi setelah fix #1 dan #2
+
+### 🚨 LANGKAH-LANGKAH FIX YANG HARUS DILAKUKAN:
+
+**Jalankan perintah berikut di VPS Hostinger:**
+
+```bash
+# Step 1: Pull latest changes dari repository (sudah ada fix untuk Svelte)
+cd /var/www/app038
+git pull origin main
+
+# Step 2: Fix Redis password (jika belum)
+# Check REDIS_PASSWORD di .env
+grep REDIS_PASSWORD .env
+# Jika kosong atau tidak ada, generate dan set:
+REDIS_PASS=$(openssl rand -base64 32)
+sed -i "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASS}/" .env
+echo "Generated REDIS_PASSWORD: ${REDIS_PASS}"
+
+# Step 3: Stop semua containers
+docker-compose -f docker-compose.prod.yml down
+
+# Step 4: Rebuild Svelte container (karena ada perubahan config)
+docker-compose -f docker-compose.prod.yml build --no-cache svelte
+
+# Step 5: Start semua containers
+docker-compose -f docker-compose.prod.yml up -d
+
+# Step 6: Wait untuk containers ready
+sleep 30
+
+# Step 7: Check status semua containers
+docker ps
+
+# Step 8: Test health endpoint
+curl http://localhost/health
+# Expected: "healthy" atau HTTP 200
+
+# Step 9: Test dari browser
+# Buka: http://168.231.118.3
+# Buka: http://vibeapps.cloud
+```
+
+### Setelah Fix Berhasil:
+
+Website akan bisa diakses di:
+- **Via IP:** http://168.231.118.3
+- **Via Domain:** http://vibeapps.cloud (jika DNS sudah pointing)
+
+---
+
 ## 📋 Daftar Isi
 
 1. [Overview](#overview)
@@ -1538,6 +1617,225 @@ sudo nano /etc/nginx/sites-available/app038
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+**Issue 3A: Nginx 500 Internal Server Error**
+
+**Error:** `500 Internal Server Error nginx/1.24.0 (Ubuntu)`
+
+**Penyebab:**
+- Container tidak berjalan atau crash
+- Container mengembalikan error 500 dari aplikasi
+- Nginx proxy_pass pointing ke port yang salah
+- Container health check gagal
+- Permission issues di container
+
+**Solusi:**
+
+**1. Check Nginx Error Logs (PENTING - Lakukan ini dulu!):**
+
+```bash
+# Check Nginx error logs untuk detail error
+sudo tail -50 /var/log/nginx/app038-error.log
+
+# Check Nginx access logs
+sudo tail -50 /var/log/nginx/app038-access.log
+
+# Real-time monitoring error logs
+sudo tail -f /var/log/nginx/app038-error.log
+# Lalu coba akses website lagi dari browser, lihat error yang muncul
+```
+
+**2. Check Container Status:**
+
+```bash
+# Check semua containers running
+docker ps
+
+# Check Svelte container khususnya
+docker ps | grep app038_svelte
+# Expected: Harus show "Up" status
+
+# Jika container tidak running atau status "Exited", check logs:
+docker logs app038_svelte --tail 100
+
+# Check Laravel container juga
+docker ps | grep app038_laravel
+docker logs app038_laravel --tail 100
+```
+
+**3. Test Container Health Endpoint Langsung:**
+
+```bash
+# Test health endpoint dari container langsung (bypass Nginx)
+# Jika Svelte container expose port 8080:
+curl http://127.0.0.1:8080/health
+# Expected: HTTP 200 OK dengan response "healthy"
+
+# Atau jika container tidak expose port, test dari dalam container:
+docker exec app038_svelte wget -q -O- http://localhost/health
+# Expected: "healthy"
+
+# Test Laravel container juga:
+docker exec app038_laravel wget -q -O- http://localhost/health
+# Expected: "healthy"
+```
+
+**4. Check Nginx Configuration:**
+
+```bash
+# Check Nginx configuration
+sudo nginx -t
+
+# Check apakah proxy_pass pointing ke port yang benar
+sudo grep -A 5 "proxy_pass" /etc/nginx/sites-available/app038
+
+# Check apakah Svelte container menggunakan port yang sesuai
+docker ps --format "table {{.Names}}\t{{.Ports}}" | grep app038_svelte
+# Lihat port mapping, contoh: "0.0.0.0:8080->80/tcp"
+# Nginx proxy_pass harus pointing ke port yang sama (8080)
+```
+
+**5. Fix Port Mapping Issue (Jika Container Port Berbeda):**
+
+```bash
+# Check port yang digunakan Svelte container
+docker port app038_svelte
+# Atau
+docker ps --format "table {{.Names}}\t{{.Ports}}" | grep app038_svelte
+
+# Jika container menggunakan port 8080, update Nginx config:
+sudo nano /etc/nginx/sites-available/app038
+
+# Update proxy_pass dari:
+# proxy_pass http://127.0.0.1:80;
+# Menjadi:
+# proxy_pass http://127.0.0.1:8080;
+
+# Save dan test
+sudo nginx -t
+sudo systemctl reload nginx
+
+# Test lagi
+curl http://localhost/health
+```
+
+**6. Restart Containers:**
+
+```bash
+# Restart Svelte container
+docker-compose -f docker-compose.prod.yml restart svelte
+
+# Wait untuk container ready
+sleep 10
+
+# Check container status
+docker ps | grep app038_svelte
+
+# Check container logs
+docker logs app038_svelte --tail 50
+
+# Test health endpoint
+curl http://127.0.0.1:8080/health
+# Atau sesuai port yang digunakan container
+```
+
+**7. Check Container Logs untuk Errors:**
+
+```bash
+# Check Svelte container logs untuk errors
+docker logs app038_svelte --tail 100 | grep -i error
+
+# Check Laravel container logs
+docker logs app038_laravel --tail 100 | grep -i error
+
+# Check semua container logs
+docker-compose -f docker-compose.prod.yml logs --tail=50
+```
+
+**8. Fix Permission Issues (Jika Ada):**
+
+```bash
+# Check storage permissions
+docker exec app038_laravel ls -la storage/
+# Expected: storage harus writable
+
+# Fix permissions jika perlu
+docker exec app038_laravel chmod -R 775 storage bootstrap/cache
+docker exec app038_laravel chown -R www-data:www-data storage bootstrap/cache
+```
+
+**9. Complete Reset (Jika Masih Error):**
+
+```bash
+# Stop semua containers
+docker-compose -f docker-compose.prod.yml down
+
+# Check Nginx config
+sudo nginx -t
+
+# Restart Nginx
+sudo systemctl restart nginx
+
+# Start containers lagi
+docker-compose -f docker-compose.prod.yml up -d
+
+# Wait untuk containers ready
+sleep 20
+
+# Check status
+docker ps
+
+# Test health endpoint
+curl http://127.0.0.1:8080/health
+# Atau sesuai port container
+
+# Test via Nginx
+curl http://localhost/health
+```
+
+**10. Quick Diagnostic Script:**
+
+```bash
+# Copy-paste script ini untuk diagnostic lengkap
+echo "=== 500 Error Diagnostic ==="
+echo ""
+echo "1. Nginx Status:"
+sudo systemctl status nginx --no-pager | grep Active
+echo ""
+echo "2. Container Status:"
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
+echo ""
+echo "3. Nginx Error Log (Last 10 lines):"
+sudo tail -10 /var/log/nginx/app038-error.log
+echo ""
+echo "4. Svelte Container Logs (Last 10 lines):"
+docker logs app038_svelte --tail 10
+echo ""
+echo "5. Test Container Health (Direct):"
+docker exec app038_svelte wget -q -O- http://localhost/health 2>&1 || echo "Container health check failed"
+echo ""
+echo "6. Test via Nginx:"
+curl -I http://localhost/health 2>&1 | head -1
+echo ""
+echo "7. Port Mapping:"
+docker port app038_svelte 2>&1 || echo "Container not running"
+echo ""
+echo "=== End Diagnostic ==="
+```
+
+**Common Causes:**
+- ❌ Container tidak running atau crash
+- ❌ Nginx proxy_pass pointing ke port yang salah
+- ❌ Container health check gagal
+- ❌ Permission issues di container
+- ❌ Application error di dalam container
+- ❌ Network connectivity issue antara Nginx dan container
+
+**Prevention:**
+- **Selalu check container status** sebelum troubleshoot Nginx
+- **Verify port mapping** antara container dan Nginx proxy_pass
+- **Check container logs** untuk application errors
+- **Test health endpoint langsung** dari container untuk isolate masalah
 
 **Issue 4: DNS tidak resolve (jika menggunakan domain)**
 
