@@ -3003,6 +3003,85 @@ docker-compose -f docker-compose.prod.yml logs svelte
 
 ### 🎯 Opsi 2: Kubernetes Deployment (Recommended)
 
+> **📊 Status Deployment Kubernetes:** Lihat [Status Deployment Kubernetes](#status-deployment-kubernetes-opsi-2) untuk melihat progress deployment dan langkah selanjutnya.
+
+#### Status Deployment Kubernetes (Opsi 2)
+
+**✅ Completed Steps:**
+
+##### Phase 1: Infrastructure Setup
+
+**✅ Step 1: Tools Installation**
+- ✅ AWS CLI: `aws-cli/2.32.10` - **INSTALLED**
+- ✅ Terraform: `v1.5.7` - **INSTALLED**
+- ✅ Helm: `v4.0.1` - **INSTALLED**
+- ✅ kubectl: `v1.34.1` - **INSTALLED**
+- ✅ Docker: **INSTALLED**
+- ✅ jq: **INSTALLED**
+
+**✅ Step 2: Setup AWS Credentials**
+- ✅ AWS CLI configured
+- ✅ Account: `040681451912`
+- ✅ User: `idmobstic`
+- ✅ Region: `us-west-2`
+- ✅ Output format: `json`
+
+**✅ Step 3: Setup Terraform Backend**
+- ✅ S3 Bucket: `app038-terraform-state` - **Created**
+- ✅ S3 Versioning: **Enabled**
+- ⚠️ S3 Encryption: Not enabled (permission needed, optional)
+- ✅ DynamoDB Table: `terraform-state-lock` - **Active**
+
+**⏳ Next Critical Steps (Urutan Penting):**
+
+1. ⏳ **Step 4: Configure Terraform** - Uncomment backend block & create terraform.tfvars
+2. ⏳ **Step 5: Provision Infrastructure** - Create EKS, RDS, VPC (15-30 min, akan ada biaya)
+3. ⏳ **Step 6: Configure kubectl** - Connect ke EKS cluster
+4. ⏳ **Step 7: Setup GitHub Container Registry** - Login ke GHCR
+5. ⏳ **Step 8: Build & Push Docker Images** - Build Laravel & Svelte images
+6. ⏳ **Step 9: Install Ingress-Nginx Controller** - **CRITICAL untuk akses online**
+7. ⏳ **Step 10: Install cert-manager** - Untuk SSL/TLS
+8. ⏳ **Step 11-13: Deploy aplikasi** - Create namespace, secrets, deploy dengan Helm
+9. ⏳ **Step 14: Setup Database** - Run migrations
+10. ⏳ **Step 15: Configure DNS** - **CRITICAL untuk akses online**
+11. ⏳ **Step 16: Verify** - Test aplikasi bisa diakses
+
+**⚠️ Important Notes:**
+
+1. **Costs:** Infrastructure provisioning (Step 5) akan memakan biaya bulanan ~$120-250
+2. **Time:** Full deployment memakan waktu 1-2 jam
+3. **Critical Steps:** Step 9 (Ingress) dan Step 15 (DNS) adalah CRITICAL - tanpa ini aplikasi tidak bisa diakses online
+4. **Credentials:** Simpan semua passwords dengan aman (deployment-secrets.txt)
+
+**🆓 Opsi Deployment GRATIS (Free Tier):**
+
+Jika Anda ingin deployment dengan biaya **GRATIS**, gunakan opsi berikut:
+
+1. **Fly.io Free Tier** ⭐ (Recommended)
+   - 3 shared-cpu-1x VMs gratis
+   - PostgreSQL gratis (3GB)
+   - 160GB data transfer gratis
+   - Setup: 30-45 menit
+   - **Guide:** Lihat [Opsi 0B: Free Tier Deployment](#-opsi-0b-free-tier-deployment-100-gratis-) → "Opsi 0A: Fly.io"
+
+2. **Railway Free Tier**
+   - $5 credit per bulan
+   - PostgreSQL gratis
+   - Auto-deploy dari GitHub
+   - Setup: 20-30 menit
+
+3. **Render Free Tier**
+   - Web service gratis (sleeps after inactivity)
+   - PostgreSQL trial 90 hari
+   - Setup: 20-30 menit
+
+4. **Oracle Cloud Free Tier**
+   - 2 VMs gratis selamanya
+   - 200GB storage gratis
+   - Setup: 45-60 menit
+
+**💡 Rekomendasi untuk GRATIS:** Gunakan **Fly.io Free Tier** - paling mudah dan reliable.
+
 #### Phase 1: Infrastructure Setup
 
 ##### Step 1: Setup AWS Credentials
@@ -3057,10 +3136,25 @@ aws dynamodb create-table \
 
 ##### Step 3: Configure Terraform
 
-Edit `terraform/main.tf`:
+**⚠️ PENTING:** Step ini WAJIB dilakukan sebelum provision infrastructure!
+
+**Action Required:**
+
+1. **Edit `terraform/main.tf` dan uncomment backend block:**
 
 ```hcl
 terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    # ... other providers
+  }
+
+  # Uncomment block di bawah ini:
   backend "s3" {
     bucket         = "app038-terraform-state"
     key            = "app038/terraform.tfstate"
@@ -3071,32 +3165,80 @@ terraform {
 }
 ```
 
-##### Step 4: Provision Infrastructure
+**Cara:**
+- Buka file `terraform/main.tf`
+- Hapus tanda `#` di depan `backend "s3"` dan semua baris di dalamnya
+- Simpan file
+
+2. **Create `terraform/terraform.tfvars`:**
+
+**⚠️ IMPORTANT:** Ganti `yourdomain.com` dengan domain yang sebenarnya!
 
 ```bash
 cd terraform
 
-# Initialize
-terraform init
-
-# Create terraform.tfvars
 cat > terraform.tfvars <<EOF
 project_name = "app038"
 environment = "production"
 aws_region = "us-west-2"
 db_password = "$(openssl rand -base64 32)"
-domain_name = "yourdomain.com"
+domain_name = "yourdomain.com"  # Ganti dengan domain Anda
 EOF
+```
 
-# Plan
+##### Step 4: Provision Infrastructure
+
+**⚠️ CRITICAL WARNING:** 
+- Step ini akan membuat biaya AWS bulanan ~$120-250
+- Infrastructure provisioning memakan waktu 15-30 menit
+- Review plan dengan teliti sebelum apply!
+
+**Action Required:**
+
+```bash
+cd terraform
+
+# Initialize Terraform dengan backend (setelah Step 3)
+terraform init
+
+# Review plan (PENTING: Review semua resources yang akan dibuat)
 terraform plan -out=tfplan
 
-# Apply (akan membuat VPC, EKS, RDS, dll)
+# Review output plan dengan teliti:
+# - VPC dengan subnets
+# - EKS Cluster
+# - RDS PostgreSQL
+# - NAT Gateway
+# - Security Groups
+# - Route Tables
+
+# Jika sudah yakin, apply:
 terraform apply tfplan
 
-# Save outputs
+# Save outputs untuk langkah selanjutnya
 terraform output -json > ../terraform-outputs.json
 ```
+
+**Resources yang akan dibuat:**
+- VPC dengan public/private subnets (3 availability zones)
+- EKS Cluster (Kubernetes) dengan node groups
+- RDS PostgreSQL Database
+- NAT Gateway (untuk outbound internet dari private subnets)
+- Security Groups
+- Route Tables
+- Internet Gateway
+
+**⚠️ Estimated Costs:**
+- EKS cluster: ~$70-150/bulan
+- RDS instance (db.t3.micro): ~$15-20/bulan
+- NAT Gateway: ~$32/bulan + data transfer
+- EC2 nodes (t3.medium x2): ~$60/bulan
+- Total estimasi: ~$120-250/bulan
+
+**💡 Tip:** 
+- Review `terraform plan` output dengan teliti
+- Pastikan semua resources yang akan dibuat sesuai kebutuhan
+- Simpan `terraform-outputs.json` dengan aman (berisi informasi penting)
 
 **Output yang dihasilkan:**
 - EKS Cluster Name
@@ -3107,27 +3249,54 @@ terraform output -json > ../terraform-outputs.json
 ##### Step 5: Configure kubectl
 
 ```bash
+# Get cluster name dari Terraform output
+cd terraform
+EKS_CLUSTER_NAME=$(terraform output -json | jq -r '.kubernetes_cluster_name.value // .eks_cluster_name.value // "app038-eks-cluster"')
+cd ..
+
 # Update kubeconfig
 aws eks update-kubeconfig \
   --region us-west-2 \
-  --name app038-eks-cluster
+  --name $EKS_CLUSTER_NAME
 
-# Verify
+# Verify connection
 kubectl cluster-info
 kubectl get nodes
+
+# Expected output: 2+ nodes should be in Ready state
 ```
+
+**⚠️ Troubleshooting:**
+- Jika `kubectl get nodes` tidak menampilkan nodes, tunggu 5-10 menit untuk EKS cluster selesai provisioning
+- Pastikan AWS credentials memiliki permission untuk EKS
 
 #### Phase 2: Container Registry Setup
 
 ##### Step 6: Setup GitHub Container Registry
 
+**Prerequisites:**
+- GitHub Personal Access Token dengan permission: `write:packages`, `read:packages`
+- GitHub Username
+
+**Action Required:**
+
 ```bash
-# Login ke GitHub Container Registry
-echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+# Set GitHub credentials
+export GITHUB_TOKEN="your_github_personal_access_token"
+export GITHUB_USERNAME="your_github_username"
+
+# Login
+echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
 
 # Verify
 docker info | grep Username
 ```
+
+**Membuat GitHub Personal Access Token:**
+1. GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token
+3. Select scopes: `write:packages`, `read:packages`, `delete:packages`
+4. Copy token (hanya muncul sekali!)
 
 **Atau setup GitHub Secrets untuk CI/CD:**
 1. GitHub Repository → Settings → Secrets and variables → Actions
@@ -3135,33 +3304,71 @@ docker info | grep Username
 
 ##### Step 7: Build & Push Docker Images
 
-**Manual Build (untuk testing):**
+**Action Required (setelah Step 6 selesai):**
 
 ```bash
 # Build Laravel image
 docker buildx build \
   --platform linux/amd64 \
   -f docker/php/Dockerfile \
-  -t ghcr.io/YOUR_USERNAME/app038/laravel:latest \
-  -t ghcr.io/YOUR_USERNAME/app038/laravel:v1.0.0 \
+  -t ghcr.io/$GITHUB_USERNAME/app038/laravel:latest \
   --push .
 
-# Build Svelte image
+# Build Svelte image (jika diperlukan - untuk production, Svelte di-build oleh Laravel via Vite)
 docker buildx build \
   --platform linux/amd64 \
   -f docker/svelte/Dockerfile \
-  -t ghcr.io/YOUR_USERNAME/app038/svelte:latest \
-  -t ghcr.io/YOUR_USERNAME/app038/svelte:v1.0.0 \
+  -t ghcr.io/$GITHUB_USERNAME/app038/svelte:latest \
   --push .
 ```
 
-**Atau gunakan CI/CD (Recommended):**
-- Push code ke GitHub
-- GitHub Actions akan otomatis build dan push images
+**Note:** Untuk production, gunakan CI/CD pipeline yang sudah dikonfigurasi.
 
 #### Phase 3: Kubernetes Deployment
 
-##### Step 8: Create Namespace
+##### Step 8: Install Ingress-Nginx Controller
+
+**⚠️ PENTING:** Ingress controller WAJIB diinstall sebelum deploy aplikasi agar aplikasi bisa diakses dari internet.
+
+```bash
+# Install ingress-nginx menggunakan Helm (Recommended)
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+# Install ingress-nginx controller
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.service.type=LoadBalancer \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  --set controller.replicaCount=2 \
+  --set controller.nodeSelector."kubernetes\.io/os"=linux \
+  --set controller.admissionWebhooks.enabled=true \
+  --set controller.metrics.enabled=true \
+  --wait \
+  --timeout 5m
+
+# Verify installation
+kubectl get pods -n ingress-nginx
+kubectl get svc -n ingress-nginx
+
+# Get Load Balancer hostname/IP (akan digunakan untuk DNS)
+kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# atau
+kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+# Simpan hostname/IP untuk langkah DNS setup
+INGRESS_HOSTNAME=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "Ingress Load Balancer: $INGRESS_HOSTNAME"
+echo "Simpan hostname ini untuk konfigurasi DNS nanti!"
+```
+
+**Catatan:**
+- Load Balancer provisioning memakan waktu 2-5 menit
+- Hostname/IP akan muncul di `status.loadBalancer.ingress` setelah provisioning selesai
+- Untuk AWS, akan dibuat Network Load Balancer (NLB) otomatis
+
+##### Step 9: Create Namespace
 
 ```bash
 kubectl create namespace app038-production
@@ -3170,16 +3377,16 @@ kubectl create namespace app038-production
 kubectl get namespaces | grep app038
 ```
 
-##### Step 9: Setup Secrets
+##### Step 10: Setup Secrets
 
 ```bash
-# Generate strong passwords
+# Generate passwords
 DB_PASSWORD=$(openssl rand -base64 32)
 REDIS_PASSWORD=$(openssl rand -base64 32)
 RABBITMQ_PASSWORD=$(openssl rand -base64 32)
-APP_KEY=$(php artisan key:generate --show | grep -oP 'base64:\K.*')
+APP_KEY="base64:$(openssl rand -base64 32)"
 
-# Create Kubernetes secrets
+# Create secrets
 kubectl create secret generic app038-secrets \
   --from-literal=DB_PASSWORD="$DB_PASSWORD" \
   --from-literal=REDIS_PASSWORD="$REDIS_PASSWORD" \
@@ -3189,37 +3396,45 @@ kubectl create secret generic app038-secrets \
 
 # Verify
 kubectl get secrets -n app038-production
+
+# ⚠️ SIMPAN PASSWORD INI DENGAN AMAN!
+echo "DB_PASSWORD: $DB_PASSWORD" > deployment-secrets.txt
+echo "REDIS_PASSWORD: $REDIS_PASSWORD" >> deployment-secrets.txt
+echo "RABBITMQ_PASSWORD: $RABBITMQ_PASSWORD" >> deployment-secrets.txt
+echo "APP_KEY: $APP_KEY" >> deployment-secrets.txt
 ```
 
-##### Step 10: Setup Image Pull Secret
+##### Step 11: Setup Image Pull Secret
 
 ```bash
-# Create registry secret
 kubectl create secret docker-registry ghcr-secret \
   --docker-server=ghcr.io \
-  --docker-username=YOUR_USERNAME \
+  --docker-username=$GITHUB_USERNAME \
   --docker-password=$GITHUB_TOKEN \
   --namespace=app038-production
+
+# Verify
+kubectl get secrets -n app038-production | grep ghcr
 ```
 
-##### Step 11: Install Helm Chart
+##### Step 12: Install Helm Chart
 
 ```bash
 cd helm/app038
 
-# Update dependencies (jika ada)
+# Update dependencies
 helm dependency update
 
 # Install chart
 helm upgrade --install app038 . \
   --namespace app038-production \
-  --set laravel.image.repository=ghcr.io/YOUR_USERNAME/app038/laravel \
+  --set laravel.image.repository=ghcr.io/$GITHUB_USERNAME/app038/laravel \
   --set laravel.image.tag=latest \
-  --set svelte.image.repository=ghcr.io/YOUR_USERNAME/app038/svelte \
+  --set svelte.image.repository=ghcr.io/$GITHUB_USERNAME/app038/svelte \
   --set svelte.image.tag=latest \
   --set ingress.hosts[0].host=app038.yourdomain.com \
   --set secrets.create=false \
-  --set secrets.dbPassword=$(kubectl get secret app038-secrets -n app038-production -o jsonpath='{.data.DB_PASSWORD}' | base64 -d) \
+  --set secrets.dbPassword=$DB_PASSWORD \
   --wait \
   --timeout 10m
 
@@ -3228,39 +3443,80 @@ helm list -n app038-production
 kubectl get pods -n app038-production
 ```
 
-##### Step 12: Setup Database
+**⚠️ IMPORTANT:** Ganti `app038.yourdomain.com` dengan domain yang sebenarnya!
+
+##### Step 13: Setup Database & Environment Variables
+
+**⚠️ PENTING:** Pastikan database connection string sudah benar di ConfigMap/Secrets.
 
 ```bash
 # Get RDS endpoint dari Terraform output
-RDS_ENDPOINT=$(cat terraform-outputs.json | jq -r '.rds_endpoint.value')
+cd terraform
+RDS_ENDPOINT=$(terraform output -json | jq -r '.database_endpoint.value // .rds_endpoint.value')
+RDS_PORT=$(terraform output -json | jq -r '.database_port.value // "5432"')
+cd ..
 
-# Connect dan create database
-psql -h $RDS_ENDPOINT -U postgres -c "CREATE DATABASE app038_production;"
-psql -h $RDS_ENDPOINT -U postgres -c "CREATE USER app038_user WITH PASSWORD '$DB_PASSWORD';"
-psql -h $RDS_ENDPOINT -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE app038_production TO app038_user;"
+echo "RDS Endpoint: $RDS_ENDPOINT:$RDS_PORT"
+
+# Update ConfigMap dengan RDS endpoint
+kubectl create configmap app038-config \
+  --from-literal=DB_HOST="$RDS_ENDPOINT" \
+  --from-literal=DB_PORT="$RDS_PORT" \
+  --from-literal=DB_DATABASE="app038_production" \
+  --from-literal=DB_USERNAME="app038_user" \
+  --namespace=app038-production \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Get DB password dari secret
+DB_PASSWORD=$(kubectl get secret app038-secrets -n app038-production -o jsonpath='{.data.DB_PASSWORD}' | base64 -d)
+
+# Create database dan user (jika belum ada)
+PGPASSWORD=$DB_PASSWORD psql -h $RDS_ENDPOINT -U postgres -c "CREATE DATABASE app038_production;" || echo "Database mungkin sudah ada"
+PGPASSWORD=$DB_PASSWORD psql -h $RDS_ENDPOINT -U postgres -c "CREATE USER app038_user WITH PASSWORD '$DB_PASSWORD';" || echo "User mungkin sudah ada"
+PGPASSWORD=$DB_PASSWORD psql -h $RDS_ENDPOINT -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE app038_production TO app038_user;"
+
+# Wait for Laravel pod to be ready
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/name=app038,app.kubernetes.io/component=laravel \
+  -n app038-production \
+  --timeout=300s
 
 # Run migrations
 kubectl exec -it deployment/app038-laravel -n app038-production -- \
   php artisan migrate --force
 
-# Run seeders
+# Run seeders (jika diperlukan)
 kubectl exec -it deployment/app038-laravel -n app038-production -- \
   php artisan db:seed --force
+
+# Verify database connection
+kubectl exec -it deployment/app038-laravel -n app038-production -- \
+  php artisan tinker --execute="DB::connection()->getPdo(); echo 'Database connected!';"
 ```
 
-##### Step 13: Setup SSL/TLS
+##### Step 14: Install cert-manager untuk SSL/TLS
+
+**⚠️ PENTING:** cert-manager diperlukan untuk mendapatkan SSL certificate dari Let's Encrypt secara otomatis.
 
 ```bash
-# Install cert-manager
+# Install cert-manager CRDs dan controller
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
 
-# Wait for cert-manager
+# Wait for cert-manager pods to be ready (2-3 menit)
+echo "Waiting for cert-manager to be ready..."
 kubectl wait --for=condition=ready pod \
   -l app.kubernetes.io/instance=cert-manager \
   -n cert-manager \
   --timeout=300s
 
-# Create ClusterIssuer
+# Verify cert-manager installation
+kubectl get pods -n cert-manager
+kubectl get crd | grep cert-manager
+
+# Create ClusterIssuer untuk Let's Encrypt Production
+# GANTI EMAIL dengan email Anda yang valid!
+read -p "Masukkan email untuk Let's Encrypt certificate: " LETSENCRYPT_EMAIL
+
 kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -3269,7 +3525,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: your-email@example.com
+    email: ${LETSENCRYPT_EMAIL}
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
@@ -3278,31 +3534,192 @@ spec:
           class: nginx
 EOF
 
-# Update Helm values untuk SSL
-helm upgrade app038 ./helm/app038 \
+# Verify ClusterIssuer
+kubectl get clusterissuer letsencrypt-prod
+
+# Update Helm values untuk SSL (jika belum di-set)
+cd helm/app038
+helm upgrade app038 . \
   --namespace app038-production \
   --reuse-values \
   --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-prod \
+  --set ingress.tls[0].secretName=app038-tls \
   --wait
 
-# Verify certificate
-kubectl get certificate -n app038-production
+cd ../..
+
+# Verify certificate creation (akan memakan waktu 1-2 menit)
+echo "Waiting for certificate to be issued..."
+kubectl get certificate -n app038-production -w
+
+# Check certificate status
+kubectl describe certificate app038-tls -n app038-production
 ```
 
-##### Step 14: Setup DNS
+##### Step 15: Setup DNS
+
+**⚠️ PENTING:** DNS harus dikonfigurasi agar aplikasi bisa diakses dari internet.
 
 ```bash
-# Get Load Balancer IP
-kubectl get ingress -n app038-production
+# Get Ingress Load Balancer hostname/IP
+INGRESS_HOSTNAME=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
-# Update DNS records di Route53 atau DNS provider
-# A record: app038.yourdomain.com -> [Load Balancer IP]
-# Atau CNAME: app038.yourdomain.com -> [Load Balancer Hostname]
+echo "Ingress Load Balancer Hostname: $INGRESS_HOSTNAME"
+echo "Ingress Load Balancer IP: $INGRESS_IP"
+
+# Jika menggunakan Route53 (AWS)
+read -p "Masukkan domain name (e.g., app038.yourdomain.com): " DOMAIN_NAME
+read -p "Apakah domain menggunakan Route53? (y/n): " USE_ROUTE53
+
+if [ "$USE_ROUTE53" = "y" ]; then
+    # Get hosted zone ID
+    read -p "Masukkan hosted zone ID: " HOSTED_ZONE_ID
+    
+    # Create A record (jika menggunakan IP)
+    if [ -n "$INGRESS_IP" ]; then
+        aws route53 change-resource-record-sets \
+          --hosted-zone-id $HOSTED_ZONE_ID \
+          --change-batch '{
+            "Changes": [{
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "'$DOMAIN_NAME'",
+                "Type": "A",
+                "TTL": 300,
+                "ResourceRecords": [{"Value": "'$INGRESS_IP'"}]
+              }
+            }]
+          }'
+        echo "✅ A record created: $DOMAIN_NAME -> $INGRESS_IP"
+    fi
+    
+    # Atau create CNAME record (jika menggunakan hostname)
+    if [ -n "$INGRESS_HOSTNAME" ] && [ -z "$INGRESS_IP" ]; then
+        aws route53 change-resource-record-sets \
+          --hosted-zone-id $HOSTED_ZONE_ID \
+          --change-batch '{
+            "Changes": [{
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "'$DOMAIN_NAME'",
+                "Type": "CNAME",
+                "TTL": 300,
+                "ResourceRecords": [{"Value": "'$INGRESS_HOSTNAME'"}]
+              }
+            }]
+          }'
+        echo "✅ CNAME record created: $DOMAIN_NAME -> $INGRESS_HOSTNAME"
+    fi
+else
+    echo ""
+    echo "⚠️  Manual DNS Configuration Required:"
+    echo "Update DNS records di provider DNS Anda:"
+    if [ -n "$INGRESS_IP" ]; then
+        echo "  A record: $DOMAIN_NAME -> $INGRESS_IP"
+    fi
+    if [ -n "$INGRESS_HOSTNAME" ]; then
+        echo "  CNAME record: $DOMAIN_NAME -> $INGRESS_HOSTNAME"
+    fi
+    echo ""
+    echo "Tunggu DNS propagation (5-30 menit) sebelum melanjutkan..."
+fi
+
+# Update Ingress dengan domain yang benar
+cd helm/app038
+helm upgrade app038 . \
+  --namespace app038-production \
+  --reuse-values \
+  --set ingress.hosts[0].host=$DOMAIN_NAME \
+  --set ingress.tls[0].hosts[0]=$DOMAIN_NAME \
+  --wait
+
+cd ../..
+
+# Verify DNS propagation
+echo "Testing DNS resolution..."
+nslookup $DOMAIN_NAME || dig $DOMAIN_NAME
 ```
+
+##### Step 16: Verify Deployment
+
+**Comprehensive Verification:**
+
+```bash
+# 1. Check semua pods status (harus Running)
+echo "=== Pods Status ==="
+kubectl get pods -n app038-production
+kubectl get pods -n ingress-nginx
+kubectl get pods -n cert-manager
+
+# 2. Check services
+echo "=== Services ==="
+kubectl get services -n app038-production
+kubectl get services -n ingress-nginx
+
+# 3. Check ingress
+echo "=== Ingress ==="
+kubectl get ingress -n app038-production -o wide
+kubectl describe ingress -n app038-production
+
+# 4. Check certificates
+echo "=== Certificates ==="
+kubectl get certificate -n app038-production
+kubectl describe certificate app038-tls -n app038-production
+
+# 5. Check certificate orders/challenges
+kubectl get order -n app038-production
+kubectl get challenge -n app038-production
+
+# 6. Test application endpoints
+DOMAIN_NAME=$(kubectl get ingress -n app038-production -o jsonpath='{.items[0].spec.rules[0].host}')
+echo "=== Testing Application ==="
+echo "Testing: http://$DOMAIN_NAME/health"
+curl -v http://$DOMAIN_NAME/health || echo "HTTP test failed, trying HTTPS..."
+echo ""
+echo "Testing: https://$DOMAIN_NAME/health"
+curl -v https://$DOMAIN_NAME/health || echo "HTTPS test failed (certificate mungkin masih dalam proses)"
+
+# 7. Check application logs
+echo "=== Laravel Logs (last 20 lines) ==="
+kubectl logs deployment/app038-laravel -n app038-production --tail=20
+
+# 8. Test database connection dari pod
+echo "=== Database Connection Test ==="
+kubectl exec -it deployment/app038-laravel -n app038-production -- \
+  php artisan tinker --execute="try { DB::connection()->getPdo(); echo '✅ Database connected!'; } catch(Exception \$e) { echo '❌ Database error: ' . \$e->getMessage(); }"
+
+# 9. Test Redis connection
+echo "=== Redis Connection Test ==="
+kubectl exec -it deployment/app038-laravel -n app038-production -- \
+  php artisan tinker --execute="try { Cache::put('test', 'value', 10); echo '✅ Redis connected!'; } catch(Exception \$e) { echo '❌ Redis error: ' . \$e->getMessage(); }"
+
+# 10. Check ingress controller logs (jika ada masalah)
+echo "=== Ingress Controller Logs (last 10 lines) ==="
+kubectl logs -n ingress-nginx deployment/ingress-nginx-controller --tail=10
+```
+
+**Expected Results:**
+
+✅ **Semua pods harus Running:**
+- `app038-laravel-*` pods: Running (3 replicas)
+- `app038-svelte-*` pods: Running (2 replicas) - jika diperlukan
+- `redis-*` pod: Running
+- `rabbitmq-*` pod: Running
+- `ingress-nginx-controller-*` pods: Running (2 replicas)
+- `cert-manager-*` pods: Running
+
+✅ **Ingress harus memiliki:**
+- Address: Load Balancer hostname/IP
+- TLS: Certificate status Ready
+
+✅ **Application harus accessible:**
+- HTTP: `http://$DOMAIN_NAME/health` → 200 OK
+- HTTPS: `https://$DOMAIN_NAME/health` → 200 OK (setelah certificate ready)
 
 #### Phase 4: CI/CD Setup
 
-##### Step 15: Configure GitHub Actions
+##### Step 17: Configure GitHub Actions
 
 1. **Setup GitHub Secrets:**
 

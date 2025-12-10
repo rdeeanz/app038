@@ -6,7 +6,7 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 ---
 
-## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 15:55 UTC)
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 16:30 UTC)
 
 ### 📊 Status VPS Hostinger:
 | Item | Value |
@@ -41,19 +41,19 @@ Arsitektur Benar:
 Internet → Nginx (Host:80) → Laravel Container (8080:80) → PostgreSQL/Redis/RabbitMQ
 ```
 
-### ⚠️ Masalah Saat Ini:
+### ✅ Masalah yang Sudah Diperbaiki:
 
-**Laravel Return 500 Internal Server Error**
-- **Gejala:** `curl http://localhost:8080/` → `500 Internal Server Error`
-- **Health check:** `curl http://localhost:8080/health` → `healthy` ✅
+1. ✅ **`.dockerignore` exclude `public/build`** - **SUDAH DIPERBAIKI** - Assets Vite sekarang ter-include dalam Docker build
+2. ✅ **Inertia SSR enabled** - **SUDAH DIPERBAIKI** - `config/inertia.php` sudah ditambahkan dengan `ssr.enabled = false` by default
+3. ✅ **Database Connection** - Sudah terhubung (`DB OK`)
+4. ✅ **Migrations** - Sudah dijalankan
+5. ✅ **Vite Build** - Sudah berhasil di host (`public/build/` ada)
 
-**Masalah yang sudah teridentifikasi:**
+### 🚨 LANGKAH SELANJUTNYA (WAJIB DILAKUKAN):
 
-1. ✅ **Database** - Sudah terhubung (`DB OK`)
-2. ✅ **Migrations** - Sudah dijalankan
-3. ✅ **Vite Build** - Sudah berhasil di host (`public/build/` ada)
-4. ❌ **`.dockerignore` exclude `public/build`** - Assets tidak ter-copy ke container → **SUDAH DIPERBAIKI**
-5. ❌ **Inertia SSR enabled** - Mencoba connect ke SSR server yang tidak ada → **config/inertia.php sudah ditambahkan**
+**Status saat ini:** Semua fix sudah di-commit dan push ke repository. **Langkah selanjutnya adalah rebuild container di VPS dengan fix yang sudah ada.**
+
+**Jalankan perintah berikut di VPS Hostinger:**
 
 ### 🚨 LANGKAH-LANGKAH FIX (FINAL):
 
