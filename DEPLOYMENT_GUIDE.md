@@ -1476,6 +1476,81 @@ docker-compose restart
    ```
 3. Wait 10-30 detik setelah deployment untuk certificate generation
 
+**Issue: Container Restarting (Crash Loop)**
+
+**Error:** `Error response from daemon: Container ... is restarting, wait until the container is running.`
+
+**Penyebab:** Container terus-menerus crash dan restart, biasanya karena:
+- Missing APP_KEY
+- Database connection error
+- Missing environment variables
+- Storage permissions
+- Missing dependencies
+
+**Solusi:**
+
+1. **Check logs (PENTING!):**
+   ```bash
+   docker logs app038_laravel --tail 100
+   # Look for error messages
+   ```
+
+2. **Check APP_KEY:**
+   ```bash
+   grep APP_KEY .env
+   # Jika kosong, generate:
+   APP_KEY_VALUE=$(openssl rand -base64 32)
+   sed -i "s/APP_KEY=.*/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+   docker-compose restart laravel
+   ```
+
+3. **Check dependencies running:**
+   ```bash
+   docker ps | grep -E "postgres|redis|rabbitmq"
+   # Semua harus "Up"
+   ```
+
+4. **Check environment variables:**
+   ```bash
+   cat .env | grep -E "APP_KEY|DB_|REDIS_|RABBITMQ_"
+   # Pastikan semua required variables ada
+   ```
+
+5. **Stop container dan check logs detail:**
+   ```bash
+   docker stop app038_laravel
+   docker logs app038_laravel --tail 200
+   # Fix issues berdasarkan error di logs
+   ```
+
+**Lihat `DEPLOY_HOSTINGER.md` section "Issue: Container Restarting" untuk troubleshooting lengkap.**
+
+**Issue: Supervisor Directory Not Found**
+
+**Error:** `Error: The directory named as part of the path /var/log/supervisor/supervisord.log does not exist`
+
+**Solusi:**
+
+1. **Pull latest changes:**
+   ```bash
+   git pull origin main
+   # Dockerfile sudah diupdate untuk create directory
+   ```
+
+2. **Rebuild container:**
+   ```bash
+   docker-compose build --no-cache laravel
+   docker-compose up -d laravel
+   ```
+
+3. **Verify:**
+   ```bash
+   docker logs app038_laravel --tail 50
+   # Seharusnya tidak ada error supervisor
+   ```
+
+**Lihat `DEPLOY_HOSTINGER.md` section "Issue: Supervisor Directory Not Found" untuk troubleshooting lengkap.**
+
 **Issue: Database connection failed**
 
 1. Check PostgreSQL container running

@@ -2183,6 +2183,382 @@ sudo systemctl status ssh
 sudo systemctl restart ssh
 ```
 
+### Issue: Container Restarting (Crash Loop)
+
+**Error:** `Error response from daemon: Container ... is restarting, wait until the container is running.`
+
+**Penyebab:**
+- Container terus-menerus crash dan restart (crash loop)
+- Biasanya disebabkan oleh application error, missing environment variables, atau configuration issues
+
+**Solusi Step-by-Step:**
+
+**1. Check Container Status dan Logs (PENTING - Lakukan ini dulu!):**
+
+```bash
+# Check status semua containers
+docker ps -a
+
+# Check status container Laravel
+docker ps -a | grep app038_laravel
+# Expected: Status akan show "Restarting" atau "Exited"
+
+# Check logs container Laravel (ini yang paling penting!)
+docker logs app038_laravel --tail 100
+# Atau untuk real-time logs:
+docker logs app038_laravel -f
+
+# Check logs dengan timestamp untuk melihat pattern
+docker logs app038_laravel --tail 100 --timestamps
+```
+
+**2. Common Causes dan Solutions:**
+
+**A. Missing APP_KEY (Paling Umum):**
+
+**Error di logs:** `No application encryption key has been specified`
+
+**Solusi:**
+```bash
+# Check apakah APP_KEY sudah di-set
+grep APP_KEY .env
+
+# Jika APP_KEY kosong atau tidak ada, generate:
+APP_KEY_VALUE=$(openssl rand -base64 32)
+sed -i "s/APP_KEY=.*/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+# Atau jika belum ada baris APP_KEY:
+echo "APP_KEY=base64:${APP_KEY_VALUE}" >> .env
+
+# Verify
+grep APP_KEY .env
+
+# Restart container
+docker-compose -f docker-compose.prod.yml restart laravel
+```
+
+**B. Database Connection Error:**
+
+**Error di logs:** `SQLSTATE[08006] [7] could not connect to server` atau `Connection refused`
+
+**Solusi:**
+```bash
+# Check apakah PostgreSQL container running
+docker ps | grep app038_postgres
+
+# Check PostgreSQL logs
+docker logs app038_postgres --tail 50
+
+# Check database environment variables
+grep -E "DB_HOST|DB_DATABASE|DB_USERNAME|DB_PASSWORD" .env
+
+# Test database connection dari host
+docker exec app038_postgres pg_isready -U postgres
+
+# Jika PostgreSQL tidak running, start dulu:
+docker-compose -f docker-compose.prod.yml up -d postgres
+
+# Wait untuk PostgreSQL ready (10-30 detik)
+sleep 15
+
+# Restart Laravel container
+docker-compose -f docker-compose.prod.yml restart laravel
+```
+
+**C. Missing Environment Variables:**
+
+**Error di logs:** `Undefined array key` atau `Environment variable not found`
+
+**Solusi:**
+```bash
+# Check semua required environment variables
+cat .env | grep -v "^#" | grep -v "^$"
+
+# Verify required variables ada:
+# - APP_KEY
+# - DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD
+# - REDIS_HOST, REDIS_PASSWORD
+# - RABBITMQ_USER, RABBITMQ_PASSWORD
+
+# Jika ada yang missing, tambahkan ke .env file
+nano .env
+
+# Restart container
+docker-compose -f docker-compose.prod.yml restart laravel
+```
+
+**D. Storage Permissions Error:**
+
+**Error di logs:** `Permission denied` atau `failed to open stream: Permission denied`
+
+**Solusi:**
+```bash
+# Fix storage permissions
+cd /var/www/app038
+sudo chown -R $USER:$USER storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
+
+# Atau jika menggunakan Docker volumes:
+docker-compose -f docker-compose.prod.yml down
+sudo chown -R 1000:1000 storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**E. Missing Dependencies atau Composer Error:**
+
+**Error di logs:** `Class not found` atau `Composer autoload error`
+
+**Solusi:**
+```bash
+# Rebuild container dengan no cache
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
+
+# Start container
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Check logs lagi
+docker logs app038_laravel --tail 50
+```
+
+**3. Stop Container dan Check Logs Detail:**
+
+```bash
+# Stop container untuk prevent restart loop
+docker stop app038_laravel
+
+# Check logs tanpa restart interference
+docker logs app038_laravel --tail 200
+
+# Check last error message
+docker logs app038_laravel 2>&1 | tail -50 | grep -i error
+
+# Check specific error patterns
+docker logs app038_laravel 2>&1 | grep -iE "fatal|error|exception|failed"
+```
+
+**4. Execute Command di Container (Jika Container Bisa Start Sebentar):**
+
+```bash
+# Wait untuk container start (meskipun akan restart)
+# Coba execute command saat container sedang running
+docker exec app038_laravel php artisan --version
+
+# Check environment variables di container
+docker exec app038_laravel env | grep -E "APP_|DB_|REDIS_"
+
+# Check PHP errors
+docker exec app038_laravel php -v
+docker exec app038_laravel php -m | grep -E "pdo|pgsql|redis"
+```
+
+**5. Temporary Fix: Run Migration Tanpa Container (Jika Container Tidak Stabil):**
+
+```bash
+# Stop container
+docker stop app038_laravel
+
+# Run migration menggunakan PHP image langsung
+docker run --rm \
+  --network app038_network \
+  -v $(pwd):/app \
+  -w /app \
+  -e APP_ENV=production \
+  -e DB_HOST=postgres \
+  -e DB_PORT=5432 \
+  -e DB_DATABASE=$(grep DB_DATABASE .env | cut -d '=' -f2) \
+  -e DB_USERNAME=$(grep DB_USERNAME .env | cut -d '=' -f2) \
+  -e DB_PASSWORD=$(grep DB_PASSWORD .env | cut -d '=' -f2) \
+  php:8.2-cli-alpine \
+  sh -c "apk add --no-cache postgresql-dev && docker-php-ext-install pdo pdo_pgsql && php artisan migrate --force"
+```
+
+**6. Check Dependencies (PostgreSQL, Redis, RabbitMQ):**
+
+```bash
+# Check semua dependencies running
+docker ps | grep -E "postgres|redis|rabbitmq"
+
+# Check network connectivity
+docker network inspect app038_network
+
+# Test connectivity dari Laravel container (jika bisa start)
+docker exec app038_laravel ping -c 3 postgres
+docker exec app038_laravel ping -c 3 redis
+docker exec app038_laravel ping -c 3 rabbitmq
+```
+
+**7. Complete Reset (Last Resort):**
+
+```bash
+# Stop semua containers
+docker-compose -f docker-compose.prod.yml down
+
+# Check dan fix .env file
+nano .env
+# Pastikan semua required variables ada dan valid
+
+# Rebuild containers
+docker-compose -f docker-compose.prod.yml build --no-cache
+
+# Start dependencies dulu
+docker-compose -f docker-compose.prod.yml up -d postgres redis rabbitmq
+
+# Wait untuk dependencies ready
+sleep 20
+
+# Start Laravel
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Monitor logs
+docker logs app038_laravel -f
+```
+
+**8. Check System Resources:**
+
+```bash
+# Check disk space
+df -h
+
+# Check memory
+free -h
+
+# Check Docker resources
+docker system df
+
+# Clean Docker jika perlu
+docker system prune -f
+```
+
+**Quick Diagnostic Commands:**
+
+```bash
+# One-liner untuk check semua issues
+echo "=== Container Status ===" && \
+docker ps -a | grep app038 && \
+echo -e "\n=== Laravel Logs (Last 50 lines) ===" && \
+docker logs app038_laravel --tail 50 && \
+echo -e "\n=== Environment Variables ===" && \
+grep -E "APP_KEY|DB_|REDIS_|RABBITMQ_" .env && \
+echo -e "\n=== Dependencies Status ===" && \
+docker ps | grep -E "postgres|redis|rabbitmq"
+```
+
+### Issue: Supervisor Directory Not Found
+
+**Error:** `Error: The directory named as part of the path /var/log/supervisor/supervisord.log does not exist`
+
+**Penyebab:**
+- Directory `/var/log/supervisor/` tidak ada di container
+- Supervisor mencoba menulis log ke path yang tidak ada
+- Dockerfile belum membuat directory yang diperlukan
+
+**Solusi:**
+
+**1. Pull Latest Changes dari Repository (CRITICAL - Lakukan ini dulu!):**
+
+```bash
+# Pull latest changes dari repository (Dockerfile sudah diupdate)
+cd /var/www/app038
+git pull origin main
+
+# Verify Dockerfile sudah terupdate
+grep -A 5 "Create Supervisor directories" docker/php/Dockerfile
+# Should show: RUN mkdir -p /var/log/supervisor /var/run
+```
+
+**2. Rebuild Container dengan No Cache:**
+
+```bash
+# Rebuild Laravel container
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
+
+# Start container
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Check logs
+docker logs app038_laravel --tail 50
+```
+
+**3. Manual Fix (Jika Pull Tidak Berhasil):**
+
+**Opsi A: Update Dockerfile Manual:**
+
+```bash
+# Edit Dockerfile
+nano docker/php/Dockerfile
+
+# Cari baris:
+# # Configure Supervisor
+# COPY docker/php/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Tambahkan setelah baris COPY supervisord.conf:
+# # Create Supervisor directories and set permissions
+# RUN mkdir -p /var/log/supervisor /var/run \
+#     && chmod -R 755 /var/log/supervisor /var/run
+
+# Save dan exit (Ctrl+X, Y, Enter)
+```
+
+**Opsi B: Update supervisord.conf untuk Gunakan stdout/stderr:**
+
+```bash
+# Edit supervisord.conf
+nano docker/php/supervisord.conf
+
+# Ganti baris:
+# logfile=/var/log/supervisor/supervisord.log
+# Menjadi:
+# logfile=/dev/stdout
+
+# Atau hapus baris logfile untuk default ke stdout
+
+# Save dan exit
+```
+
+**4. Alternative: Fix di Container Running (Temporary):**
+
+```bash
+# Stop container
+docker stop app038_laravel
+
+# Start container dengan command override untuk create directory
+docker run --rm -it \
+  --name app038_laravel_temp \
+  --network app038_network \
+  -v $(pwd)/storage:/app/storage \
+  -v $(pwd)/bootstrap/cache:/app/bootstrap/cache \
+  app038_laravel:latest \
+  sh -c "mkdir -p /var/log/supervisor /var/run && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+
+# Tapi ini hanya temporary, lebih baik fix Dockerfile
+```
+
+**5. Verify Fix:**
+
+```bash
+# Rebuild dan start
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
+docker-compose -f docker-compose.prod.yml up -d laravel
+
+# Check logs (seharusnya tidak ada error supervisor)
+docker logs app038_laravel --tail 50
+
+# Check container status
+docker ps | grep app038_laravel
+# Harus show "Up" (bukan "Restarting")
+
+# Test supervisor running
+docker exec app038_laravel ps aux | grep supervisord
+```
+
+**Catatan:** Dockerfile di repository sudah diupdate untuk membuat directory yang diperlukan. Pastikan pull latest changes sebelum rebuild.
+
+**Prevention:**
+- Pastikan semua environment variables sudah di-set sebelum start container
+- Verify dependencies (postgres, redis, rabbitmq) running sebelum start Laravel
+- Check logs setelah start container untuk early detection
+- Use health checks untuk automatic recovery
+
 ### Issue: Docker Containers Tidak Start
 
 ```bash

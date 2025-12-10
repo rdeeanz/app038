@@ -160,6 +160,10 @@ COPY docker/php/default.conf /etc/nginx/http.d/default.conf
 # Configure Supervisor
 COPY docker/php/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Create Supervisor directories and set permissions
+RUN mkdir -p /var/log/supervisor /var/run \
+    && chmod -R 755 /var/log/supervisor /var/run
+
 # Expose port
 EXPOSE 80
 
