@@ -6,7 +6,7 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 ---
 
-## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 16:30 UTC)
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 18:00 UTC)
 
 ### 📊 Status VPS Hostinger:
 | Item | Value |
@@ -25,6 +25,39 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 | app038_postgres | ✅ Up (healthy) | 5432 | PostgreSQL Database |
 | app038_redis | ✅ Up (healthy) | 6379 | Redis Cache |
 | app038_rabbitmq | ✅ Up (healthy) | 5672 | RabbitMQ Queue |
+
+### 📋 Technical Specifications:
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **PHP** | 8.2+ | Required: `^8.2` (from composer.json), Docker: `php:8.2-fpm-alpine` |
+| **Laravel** | 11.0 LTS | Framework version: `^11.0` |
+| **Node.js** | 20.x | Recommended for Vite 5.x |
+| **npm** | 9.x+ | Package manager |
+| **PostgreSQL** | 15 | Database (via Docker: `postgres:15-alpine`) |
+| **Redis** | 7 | Cache & Session (via Docker: `redis:7-alpine`) |
+| **RabbitMQ** | 3 | Message Queue (via Docker: `rabbitmq:3-management-alpine`) |
+| **Docker** | 20.10+ | Container runtime |
+| **Docker Compose** | 2.0+ | Container orchestration |
+| **Nginx** | Latest | Web server (host as reverse proxy) |
+| **Ubuntu** | 24.04 LTS | Operating system |
+
+### 📋 PHP Extensions Required:
+
+Dari `composer.json` dan `docker/php/Dockerfile`, aplikasi memerlukan PHP extensions berikut:
+
+- `pdo` - Database abstraction
+- `pdo_pgsql` - PostgreSQL driver
+- `pgsql` - PostgreSQL extension
+- `zip` - Archive handling
+- `mbstring` - Multibyte string handling
+- `exif` - Image metadata
+- `pcntl` - Process control
+- `bcmath` - Arbitrary precision mathematics
+- `intl` - Internationalization
+- `opcache` - OPcache for performance
+
+**Note:** Semua extensions ini sudah terinstall di Docker container (`docker/php/Dockerfile`).
 
 ### 🔍 Arsitektur Aplikasi (PENTING!)
 
@@ -48,14 +81,85 @@ Internet → Nginx (Host:80) → Laravel Container (8080:80) → PostgreSQL/Redi
 3. ✅ **Database Connection** - Sudah terhubung (`DB OK`)
 4. ✅ **Migrations** - Sudah dijalankan
 5. ✅ **Vite Build** - Sudah berhasil di host (`public/build/` ada)
+6. ✅ **`.env.example`** - **SUDAH DIBUAT** - Template environment variables lengkap
 
 ### 🚨 LANGKAH SELANJUTNYA (WAJIB DILAKUKAN):
 
-**Status saat ini:** Semua fix sudah di-commit dan push ke repository. **Langkah selanjutnya adalah rebuild container di VPS dengan fix yang sudah ada.**
+**Status saat ini:** Semua fix sudah di-commit dan push ke repository. **Langkah selanjutnya adalah setup environment variables dan rebuild container di VPS dengan fix yang sudah ada.**
+
+**📋 Quick Start untuk Ubuntu 24.04:**
+
+```bash
+# ========================================
+# COMPLETE DEPLOYMENT SCRIPT - Ubuntu 24.04
+# ========================================
+cd /var/www/app038
+
+# Step 1: Pull latest changes
+git pull origin main
+
+# Step 2: Setup .env file
+if [ -f .env.example ]; then
+    cp .env.example .env
+else
+    echo "⚠️ .env.example not found, creating .env from template"
+    # Create .env (see Step 4.1 for full template)
+fi
+
+# Step 3: Generate secure passwords
+DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+RABBITMQ_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+
+# Update .env
+sed -i "s/DB_PASSWORD=$/DB_PASSWORD=$DB_PASSWORD/" .env
+sed -i "s/REDIS_PASSWORD=$/REDIS_PASSWORD=$REDIS_PASSWORD/" .env
+sed -i "s/RABBITMQ_PASSWORD=$/RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD/" .env
+
+# Step 4: Generate APP_KEY
+APP_KEY_VALUE=$(openssl rand -base64 32)
+sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+
+# Step 5: Update APP_URL (ganti dengan domain atau IP Anda)
+read -p "Enter domain (or press Enter for IP): " DOMAIN
+if [ -z "$DOMAIN" ]; then
+    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=http://168.231.118.3|" .env
+else
+    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=https://$DOMAIN|" .env
+fi
+
+# Step 6: Install Node.js 20.x (for Vite build)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Step 7: Build Vite assets
+npm install
+npm run build
+
+# Step 8: Stop and rebuild containers
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
+docker-compose -f docker-compose.prod.yml up -d
+
+# Step 9: Wait for containers
+echo "⏳ Waiting 30 seconds for containers to start..."
+sleep 30
+
+# Step 10: Setup Laravel
+docker exec app038_laravel php artisan key:generate --force
+docker exec app038_laravel php artisan migrate --force
+docker exec app038_laravel php artisan config:clear
+docker exec app038_laravel php artisan cache:clear
+docker exec app038_laravel php artisan config:cache
+docker exec app038_laravel php artisan route:cache
+
+# Step 11: Verify
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
+curl -s http://localhost:8080/health
+echo "✅ Test: http://168.231.118.3"
+```
 
 **Jalankan perintah berikut di VPS Hostinger:**
-
-### 🚨 LANGKAH-LANGKAH FIX (FINAL):
 
 **Jalankan perintah berikut di VPS Hostinger:**
 
@@ -502,43 +606,24 @@ ls -la docker/svelte/Dockerfile
 
 ```bash
 # Check apakah .env.example ada
-ls -la .env.example
-
-# Jika .env.example TIDAK ADA, buat .env langsung
-# Jika .env.example ADA, copy dari template
 if [ -f .env.example ]; then
+    echo "✅ .env.example found, copying to .env"
     cp .env.example .env
+    echo "✅ .env file created from .env.example"
 else
-    # Buat .env file baru
-    touch .env
-    echo "# Laravel Environment Configuration" > .env
-fi
-
-# Edit environment file
-nano .env
-```
-
-**Catatan:** Jika file `.env.example` tidak ada di repository, buat file `.env` langsung dan isi dengan template di bawah ini.
-
-**4.2. Configure Environment Variables**
-
-**Jika `.env.example` tidak ada, buat file `.env` dengan template berikut:**
-
-```bash
-# Buat file .env jika belum ada
-cat > .env << 'EOF'
-# Application Configuration
+    echo "⚠️ .env.example not found, creating .env from template"
+    # Buat .env file baru dengan template lengkap
+    cat > .env << 'ENVEOF'
 APP_NAME=App038
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
-APP_URL=http://168.231.118.3
-# Atau jika punya domain: APP_URL=https://yourdomain.com
+APP_URL=https://yourdomain.com
 
 LOG_CHANNEL=stack
-LOG_LEVEL=info
+LOG_LEVEL=error
 
-# Database Configuration (PostgreSQL)
+# Database Configuration
 DB_CONNECTION=pgsql
 DB_HOST=postgres
 DB_PORT=5432
@@ -552,7 +637,7 @@ REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_DB=0
 
-# Cache & Session
+# Cache and Session
 CACHE_DRIVER=redis
 SESSION_DRIVER=redis
 SESSION_LIFETIME=120
@@ -565,52 +650,99 @@ RABBITMQ_HOST=rabbitmq
 RABBITMQ_PORT=5672
 RABBITMQ_USER=guest
 RABBITMQ_PASSWORD=
-RABBITMQ_VHOST=/
 
-# Mail Configuration (sesuaikan dengan provider email Anda)
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.mailtrap.io
-MAIL_PORT=2525
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_ENCRYPTION=null
-MAIL_FROM_ADDRESS="noreply@yourdomain.com"
-MAIL_FROM_NAME="${APP_NAME}"
+# Inertia.js Configuration
+INERTIA_SSR_ENABLED=false
 
-# Sanctum Configuration (jika menggunakan API)
-SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,168.231.118.3
-EOF
+# Sanctum Configuration
+SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,yourdomain.com
+ENVEOF
+    echo "✅ .env file created from template"
+fi
+
+# Verify .env file created
+if [ -f .env ]; then
+    echo "✅ .env file exists"
+    echo "📝 File location: $(pwd)/.env"
+    echo "📝 Total lines: $(wc -l < .env)"
+else
+    echo "❌ .env file creation failed"
+    exit 1
+fi
 ```
 
-**Atau edit `.env` file dengan konfigurasi berikut (ganti values sesuai kebutuhan):**
+**Catatan:** 
+- File `.env.example` sudah tersedia di repository dengan template lengkap
+- Copy ke `.env` dan sesuaikan values-nya dengan passwords yang akan di-generate di langkah berikutnya
+- **JANGAN commit file `.env`** ke repository (sudah di `.gitignore`)
 
-**Environment Variables Wajib:**
+**4.2. Generate Secure Passwords**
+
+```bash
+# Generate secure passwords untuk database, Redis, dan RabbitMQ
+DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+RABBITMQ_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+
+# Update .env file dengan passwords
+sed -i "s/DB_PASSWORD=$/DB_PASSWORD=$DB_PASSWORD/" .env
+sed -i "s/REDIS_PASSWORD=$/REDIS_PASSWORD=$REDIS_PASSWORD/" .env
+sed -i "s/RABBITMQ_PASSWORD=$/RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD/" .env
+
+# Save passwords securely
+echo "DB_PASSWORD: $DB_PASSWORD" > /root/app038-passwords.txt
+echo "REDIS_PASSWORD: $REDIS_PASSWORD" >> /root/app038-passwords.txt
+echo "RABBITMQ_PASSWORD: $RABBITMQ_PASSWORD" >> /root/app038-passwords.txt
+chmod 600 /root/app038-passwords.txt
+
+echo "✅ Passwords generated and saved to /root/app038-passwords.txt"
+```
+
+**4.3. Update APP_URL**
+
+```bash
+# Update APP_URL dengan domain atau IP VPS
+read -p "Enter your domain name (or press Enter to use IP): " DOMAIN_NAME
+
+if [ -z "$DOMAIN_NAME" ]; then
+    # Use IP address
+    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=http://168.231.118.3|" .env
+    echo "✅ APP_URL updated to: http://168.231.118.3"
+else
+    # Use domain
+    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=https://$DOMAIN_NAME|" .env
+    echo "✅ APP_URL updated to: https://$DOMAIN_NAME"
+fi
+
+# Verify
+grep APP_URL .env
+```
+
+**4.4. Environment Variables Wajib untuk Production:**
+
+**PENTING:** Pastikan semua variables berikut sudah di-set dengan benar:
 
 ```env
 # Application Configuration
 APP_NAME=App038
 APP_ENV=production
-APP_KEY=base64:YOUR_APP_KEY_HERE
-APP_DEBUG=false
-APP_URL=https://yourdomain.com
-# Atau jika belum punya domain: APP_URL=http://168.231.118.3
-
-LOG_CHANNEL=stack
-LOG_LEVEL=info
+APP_KEY=                    # Akan di-generate di Step 4.3
+APP_DEBUG=false            # HARUS false untuk production
+APP_URL=https://yourdomain.com  # Ganti dengan domain atau IP VPS
 
 # Database Configuration (PostgreSQL)
-# PENTING: DB_HOST harus "postgres" (service name di docker-compose), BUKAN "localhost" atau "127.0.0.1"
+# PENTING: DB_HOST harus "postgres" (service name di docker-compose), BUKAN "localhost"
 DB_CONNECTION=pgsql
-DB_HOST=postgres
+DB_HOST=postgres           # Service name di docker-compose.prod.yml
 DB_PORT=5432
 DB_DATABASE=app038
 DB_USERNAME=postgres
-DB_PASSWORD=your_strong_password_here
+DB_PASSWORD=              # Akan di-generate di Step 4.2
 
 # Redis Configuration
-REDIS_HOST=redis
+REDIS_HOST=redis          # Service name di docker-compose.prod.yml
 REDIS_PORT=6379
-REDIS_PASSWORD=your_redis_password_here
+REDIS_PASSWORD=           # Akan di-generate di Step 4.2
 REDIS_DB=0
 
 # Cache & Session
@@ -622,77 +754,54 @@ SESSION_LIFETIME=120
 QUEUE_CONNECTION=rabbitmq
 
 # RabbitMQ Configuration
-RABBITMQ_HOST=rabbitmq
+RABBITMQ_HOST=rabbitmq    # Service name di docker-compose.prod.yml
 RABBITMQ_PORT=5672
 RABBITMQ_USER=guest
-RABBITMQ_PASSWORD=your_rabbitmq_password_here
-RABBITMQ_VHOST=/
-```
+RABBITMQ_PASSWORD=        # Akan di-generate di Step 4.2
 
-**Environment Variables Tambahan (Recommended):**
+# Inertia.js Configuration
+INERTIA_SSR_ENABLED=false # HARUS false (SSR server tidak tersedia)
 
-```env
-# Mail Configuration (sesuaikan dengan provider email Anda)
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
-MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=noreply@yourdomain.com
-MAIL_FROM_NAME="${APP_NAME}"
-
-# Sanctum Configuration (jika menggunakan API)
-SANCTUM_STATEFUL_DOMAINS=yourdomain.com,www.yourdomain.com
-
-# Broadcast Configuration
-BROADCAST_DRIVER=log
+# Sanctum Configuration (untuk API authentication)
+SANCTUM_STATEFUL_DOMAINS=yourdomain.com,www.yourdomain.com,168.231.118.3
 ```
 
 **Catatan Penting:**
-- Untuk docker-compose.prod.yml, pastikan environment variables di .env file menggunakan format yang sesuai dengan docker-compose
-- Variable substitution di docker-compose menggunakan `${VARIABLE_NAME}` format
-- Pastikan semua required variables sudah di-set sebelum build/start containers
+- **DB_HOST, REDIS_HOST, RABBITMQ_HOST** harus menggunakan **service name** dari `docker-compose.prod.yml` (bukan `localhost` atau IP)
+- **APP_DEBUG** harus `false` untuk production
+- **APP_KEY** akan di-generate otomatis di langkah berikutnya
+- Semua passwords akan di-generate secara otomatis
 - Simpan semua passwords dengan aman (password manager recommended)
 
-**4.3. Generate APP_KEY**
+**4.5. Generate APP_KEY**
 
-**Opsi A: Generate APP_KEY dengan Docker (Recommended - Tidak perlu install PHP di host)**
+**Method 1: Generate Manual (Paling Simple - Recommended)**
 
 ```bash
-# Pastikan Docker sudah running
-sudo systemctl status docker
-
-# Method 1: Build image dulu, lalu generate key
-cd /var/www/app038
-
-# Build Laravel image (jika belum)
-docker-compose -f docker-compose.prod.yml build laravel
-
-# Generate APP_KEY menggunakan image yang sudah di-build
-docker run --rm -v $(pwd):/app -w /app \
-  app038_laravel:latest \
-  php artisan key:generate --show
-
-# Method 2: Gunakan PHP image langsung (Lebih Simple - Recommended)
-docker run --rm -v $(pwd):/app -w /app \
-  php:8.2-cli-alpine \
-  sh -c "composer install --ignore-platform-reqs --no-dev --no-scripts && php artisan key:generate --show"
-
-# Method 3: Generate APP_KEY manual (Paling Simple - Tidak perlu Docker/PHP)
+# Generate APP_KEY secara manual (tidak perlu Docker atau PHP di host)
 APP_KEY_VALUE=$(openssl rand -base64 32)
-echo "base64:${APP_KEY_VALUE}"
+APP_KEY="base64:${APP_KEY_VALUE}"
 
 # Update .env file
-sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+sed -i "s/APP_KEY=$/APP_KEY=$APP_KEY/" .env
 
 # Verify
 grep APP_KEY .env
+
+echo "✅ APP_KEY generated: $APP_KEY"
 ```
 
-**Catatan:** Method 3 (Generate Manual) adalah yang paling simple dan tidak perlu build Docker image atau install PHP. Recommended untuk production deployment.
+**Method 2: Generate dengan Docker (Setelah container running)**
 
-**Opsi B: Install PHP 8.4 dari PPA (Jika perlu PHP di host)**
+```bash
+# Generate APP_KEY setelah container Laravel running
+docker exec app038_laravel php artisan key:generate --force
+
+# Verify
+docker exec app038_laravel php artisan tinker --execute="echo config('app.key');"
+```
+
+**Catatan:** Method 1 (Generate Manual) adalah yang paling simple dan tidak perlu build Docker image atau install PHP. Recommended untuk production deployment.
 
 ```bash
 # Add PHP repository
@@ -754,32 +863,20 @@ echo "APP_KEY generated: base64:${APP_KEY_VALUE}"
 grep APP_KEY .env
 ```
 
-**4.4. Generate Strong Passwords**
+**4.7. Verify .env File**
 
 ```bash
-# Generate password untuk database
-openssl rand -base64 32
+# Check .env file (hide sensitive data)
+cat .env | grep -v "^#" | grep -v "^$" | sed 's/=.*/=***HIDDEN***/'
 
-# Generate password untuk Redis
-openssl rand -base64 32
-
-# Generate password untuk RabbitMQ
-openssl rand -base64 32
-
-# Copy passwords ke .env file
-```
-
-**4.5. Verify .env File**
-
-```bash
-# Check .env file
-cat .env | grep -v "^#" | grep -v "^$"
-
-# Verify required variables
-grep -E "APP_KEY|DB_PASSWORD|REDIS_PASSWORD|RABBITMQ_PASSWORD" .env
+# Verify required variables are set (show variable names only)
+echo "=== Required Variables Check ==="
+grep -E "^APP_KEY=|^DB_PASSWORD=|^REDIS_PASSWORD=|^RABBITMQ_PASSWORD=" .env | cut -d'=' -f1
 
 # PENTING: Verify service names (bukan localhost!)
-grep -E "DB_HOST|REDIS_HOST|RABBITMQ_HOST" .env
+echo ""
+echo "=== Service Names Check ==="
+grep -E "^DB_HOST=|^REDIS_HOST=|^RABBITMQ_HOST=" .env
 
 # Expected output:
 # DB_HOST=postgres          # Harus "postgres" bukan "localhost"
@@ -787,9 +884,20 @@ grep -E "DB_HOST|REDIS_HOST|RABBITMQ_HOST" .env
 # RABBITMQ_HOST=rabbitmq    # Harus "rabbitmq" bukan "localhost"
 
 # Jika salah, fix:
-sed -i 's/DB_HOST=.*/DB_HOST=postgres/' .env
-sed -i 's/REDIS_HOST=.*/REDIS_HOST=redis/' .env
-sed -i 's/RABBITMQ_HOST=.*/RABBITMQ_HOST=rabbitmq/' .env
+sed -i 's/^DB_HOST=.*/DB_HOST=postgres/' .env
+sed -i 's/^REDIS_HOST=.*/REDIS_HOST=redis/' .env
+sed -i 's/^RABBITMQ_HOST=.*/RABBITMQ_HOST=rabbitmq/' .env
+
+# Final verification
+echo ""
+echo "=== Final Verification ==="
+if grep -q "^DB_HOST=postgres$" .env && \
+   grep -q "^REDIS_HOST=redis$" .env && \
+   grep -q "^RABBITMQ_HOST=rabbitmq$" .env; then
+    echo "✅ Service names are correct"
+else
+    echo "❌ Service names are incorrect - please fix"
+fi
 ```
 
 **⚠️ PENTING: Service Names di Docker Compose**
@@ -848,7 +956,6 @@ docker-compose -f docker-compose.prod.yml build
 
 # Atau build specific service
 docker-compose -f docker-compose.prod.yml build laravel
-docker-compose -f docker-compose.prod.yml build svelte
 
 # Check images
 docker images | grep app038
@@ -858,55 +965,10 @@ docker images | grep app038
 
 **Troubleshooting Build Errors:**
 
-**Error: "docker/svelte/default.conf: not found"**
-
-**Penyebab:** File `.dockerignore` di root project mengexclude folder `docker/svelte`, sehingga file konfigurasi Nginx tidak tersedia saat build.
-
-**Solusi:**
-
-1. **Update .dockerignore (Recommended):**
-   ```bash
-   # Edit .dockerignore
-   nano .env
-   # Atau
-   vi .dockerignore
-   
-   # Hapus atau comment baris berikut:
-   # docker/svelte
-   
-   # Atau pastikan baris tersebut sudah di-comment:
-   # # docker/svelte  # Commented out - needed for Docker build
-   ```
-
-2. **Verifikasi file ada:**
-   ```bash
-   # Check apakah file default.conf ada
-   ls -la docker/svelte/default.conf
-   ls -la docker/svelte/nginx.conf
-   
-   # Expected output: file harus ada
-   ```
-
-3. **Pull latest changes dari repository:**
-   ```bash
-   # Pull latest changes (file .dockerignore sudah diupdate)
-   git pull origin main
-   
-   # Verify .dockerignore sudah terupdate
-   grep -A 2 "docker/svelte" .dockerignore
-   # Should show commented line atau tidak ada baris docker/svelte
-   ```
-
-4. **Rebuild dengan no cache:**
-   ```bash
-   # Clean build
-   docker-compose -f docker-compose.prod.yml build --no-cache svelte
-   
-   # Atau rebuild semua
-   docker-compose -f docker-compose.prod.yml build --no-cache
-   ```
-
-**Catatan:** File `.dockerignore` di repository sudah diupdate untuk tidak mengexclude `docker/svelte`. Pastikan Anda sudah pull latest changes sebelum build.
+**Catatan:** 
+- **Svelte container sudah dihapus** dari `docker-compose.prod.yml` karena aplikasi menggunakan Laravel + Inertia.js + Svelte (monolith)
+- Laravel container sudah expose port `8080:80` untuk direct access
+- Vite assets harus di-build di host sebelum container di-start (lihat Step 6.2)
 
 **Error: "composer dump-autoload failed"**
 
@@ -973,7 +1035,32 @@ docker-compose -f docker-compose.prod.yml build --no-cache laravel
 docker build --platform linux/amd64 -f docker/php/Dockerfile -t app038-laravel:latest .
 ```
 
-**6.2. Start Services**
+**6.2. Install Node.js & npm (untuk Build Vite Assets)**
+
+**PENTING:** Vite assets perlu di-build sebelum container di-start. Install Node.js di host untuk build assets.
+
+```bash
+# Install Node.js 20.x (LTS) - Recommended untuk Vite 5.x
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should be v20.x.x
+npm --version   # Should be 9.x.x or 10.x.x
+
+# Install npm dependencies
+cd /var/www/app038
+npm install
+
+# Build Vite assets untuk production
+npm run build
+
+# Verify build output
+ls -la public/build/
+# Expected: manifest.json dan assets/ directory
+```
+
+**6.3. Start Services**
 
 ```bash
 # Start semua services
@@ -989,31 +1076,38 @@ docker-compose -f docker-compose.prod.yml logs -f
 **Expected Output:**
 ```
 NAME                IMAGE                    STATUS
-app038_laravel      app038_laravel:latest    Up
-app038_svelte       app038_svelte:latest     Up
-app038_postgres     postgres:15-alpine      Up
-app038_redis        redis:7-alpine          Up
-app038_rabbitmq     rabbitmq:3-management-alpine Up
+app038_laravel      app038-laravel:latest    Up (healthy)
+app038_postgres     postgres:15-alpine      Up (healthy)
+app038_redis        redis:7-alpine          Up (healthy)
+app038_rabbitmq     rabbitmq:3-management-alpine Up (healthy)
 ```
 
 **Catatan:** 
-- RabbitMQ sudah termasuk di `docker-compose.prod.yml` yang sudah diupdate
-- Jika RabbitMQ tidak muncul, pastikan environment variables `RABBITMQ_USER` dan `RABBITMQ_PASSWORD` sudah di-set di `.env` file
-- Pastikan RabbitMQ service sudah ditambahkan di `docker-compose.prod.yml` (lihat Post-Deployment section Step 1 jika perlu)
+- **Svelte container TIDAK diperlukan** - Laravel serve semua assets via Vite build
+- RabbitMQ sudah termasuk di `docker-compose.prod.yml`
+- Pastikan environment variables `RABBITMQ_USER` dan `RABBITMQ_PASSWORD` sudah di-set di `.env` file
 
-**6.3. Verify Containers Running**
+**6.4. Verify Containers Running**
 
 ```bash
 # Check all containers
 docker ps
 
-# Check specific container
-docker ps | grep app038
+# Check specific containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
+
+# Check container health
+docker-compose -f docker-compose.prod.yml ps
 
 # Check container logs
 docker logs app038_laravel --tail 50
-docker logs app038_svelte --tail 50
 docker logs app038_postgres --tail 50
+docker logs app038_redis --tail 50
+docker logs app038_rabbitmq --tail 50
+
+# Verify Vite assets in container
+docker exec app038_laravel ls -la /app/public/build/
+# Expected: manifest.json dan assets/ directory
 ```
 
 ---
@@ -1181,10 +1275,11 @@ server {
     # Client body size
     client_max_body_size 20M;
 
-    # Proxy to Svelte container (Frontend)
-    # Svelte container expose port 80, map ke host port 80
+    # Proxy to Laravel container
+    # Laravel container expose port 8080:80 (host:container)
+    # Laravel serve semua: HTML, API, dan Assets (via Vite build)
     location / {
-        proxy_pass http://127.0.0.1:80;
+        proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1202,25 +1297,17 @@ server {
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
         
-        # Buffering
-        proxy_buffering off;
-        proxy_request_buffering off;
+        # Buffer settings
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_temp_file_write_size 256k;
+        proxy_max_temp_file_size 0;
     }
-    
-    # API routes (jika ingin proxy ke Laravel langsung)
-    # Uncomment jika ingin route /api ke Laravel container
-    # Note: Laravel container juga expose port 80, perlu map ke port berbeda
-    # location /api {
-    #     proxy_pass http://127.0.0.1:8080;
-    #     proxy_set_header Host $host;
-    #     proxy_set_header X-Real-IP $remote_addr;
-    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    #     proxy_set_header X-Forwarded-Proto $scheme;
-    # }
 
     # Health check endpoint
     location /health {
-        proxy_pass http://127.0.0.1:80/health;
+        proxy_pass http://127.0.0.1:8080/health;
         access_log off;
     }
 }
@@ -1394,19 +1481,18 @@ openssl s_client -connect yourdomain.com:443 -servername yourdomain.com | grep "
 ```bash
 # Check Docker containers
 docker ps
-# Expected: laravel, svelte, postgres, redis (dan rabbitmq jika sudah ditambahkan)
+# Expected: laravel, postgres, redis, rabbitmq
 
 # Check container logs
 docker logs app038_laravel --tail 50
-docker logs app038_svelte --tail 50
 docker logs app038_postgres --tail 50
 docker logs app038_redis --tail 50
-# docker logs app038_rabbitmq --tail 50  # Jika sudah ditambahkan
+docker logs app038_rabbitmq --tail 50
 
 # Check network connectivity
 docker exec app038_laravel ping -c 3 postgres
 docker exec app038_laravel ping -c 3 redis
-# docker exec app038_laravel ping -c 3 rabbitmq  # Jika sudah ditambahkan
+docker exec app038_laravel ping -c 3 rabbitmq
 
 # Check container health
 docker ps --format "table {{.Names}}\t{{.Status}}"
@@ -1422,78 +1508,39 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 ---
 
-### Step 11A: Final Steps untuk Akses Online dari Internet
+### Step 11A: Final Verification & Testing
 
-**⚠️ PENTING: Langkah-langkah ini WAJIB dilakukan agar website bisa diakses dari internet!**
+**⚠️ PENTING: Pastikan semua langkah sudah dilakukan dengan benar!**
 
-**11A.1. Fix Port Conflict (Svelte Container vs Nginx)**
-
-**Masalah:** Svelte container di `docker-compose.prod.yml` expose port `80:80`, yang akan conflict dengan Nginx di host yang juga menggunakan port 80.
-
-**Solusi: Ubah Svelte Container Port Mapping**
+**11A.1. Verify All Services Running**
 
 ```bash
-# Edit docker-compose.prod.yml
-cd /var/www/app038
-nano docker-compose.prod.yml
+# Check all containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
+
+# Expected output:
+# app038_laravel    Up (healthy)    0.0.0.0:8080->80/tcp
+# app038_postgres   Up (healthy)    5432/tcp
+# app038_redis      Up (healthy)    6379/tcp
+# app038_rabbitmq   Up (healthy)    5672/tcp, 15672/tcp
 ```
 
-**Ubah bagian svelte service dari:**
-```yaml
-ports:
-  - "80:80"
-```
+**11A.2. Verify Application Access**
 
-**Menjadi:**
-```yaml
-ports:
-  - "8080:80"  # Map container port 80 ke host port 8080
-```
-
-**Atau hapus port mapping sama sekali (Recommended - karena Nginx akan proxy ke container):**
-```yaml
-# Hapus atau comment out ports section
-# ports:
-#   - "80:80"
-```
-
-**Setelah edit, restart services:**
 ```bash
-# Stop services
-docker-compose -f docker-compose.prod.yml down
+# Test from container directly
+curl http://localhost:8080/health
+# Expected: healthy
 
-# Start services lagi
-docker-compose -f docker-compose.prod.yml up -d
+# Test from host Nginx
+curl http://localhost/health
+# Expected: healthy
 
-# Verify
-docker ps | grep app038_svelte
-# Port mapping harus sesuai dengan yang di-edit
+# Test from external (if DNS already configured)
+curl http://yourdomain.com/health
+curl https://yourdomain.com/health
+# Expected: healthy
 ```
-
-**11A.2. Update Nginx Configuration untuk Proxy ke Container**
-
-**Jika Svelte container menggunakan port 8080 di host:**
-```bash
-# Edit Nginx config
-sudo nano /etc/nginx/sites-available/app038
-```
-
-**Update proxy_pass dari:**
-```nginx
-proxy_pass http://127.0.0.1:80;
-```
-
-**Menjadi:**
-```nginx
-proxy_pass http://127.0.0.1:8080;
-```
-
-**Atau jika menggunakan Docker network (Recommended):**
-```nginx
-# Gunakan Docker network untuk proxy langsung ke container
-proxy_pass http://172.17.0.1:8080;
-# Atau cari IP container:
-docker inspect app038_svelte | grep IPAddress
 # Gunakan IP tersebut, atau lebih baik gunakan host.docker.internal jika tersedia
 ```
 
@@ -1503,22 +1550,22 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-**11A.3. Verify Port 80 Tidak Terpakai oleh Container**
+**11A.3. Verify Port Configuration**
 
 ```bash
-# Check apakah ada container yang menggunakan port 80
+# Check apakah Nginx menggunakan port 80
 sudo netstat -tlnp | grep :80
 sudo ss -tlnp | grep :80
-
-# Jika ada container yang menggunakan port 80, stop dulu:
-docker ps | grep 80
-# Stop container yang menggunakan port 80 (biasanya svelte container)
-docker stop <container_id>
-
-# Pastikan Nginx menggunakan port 80
-sudo systemctl status nginx
-sudo netstat -tlnp | grep :80
 # Expected: nginx harus listen di port 80
+
+# Check apakah Laravel container menggunakan port 8080
+sudo netstat -tlnp | grep :8080
+sudo ss -tlnp | grep :8080
+# Expected: docker-proxy atau container harus listen di port 8080
+
+# Verify port mapping
+docker ps --format "table {{.Names}}\t{{.Ports}}" | grep app038_laravel
+# Expected: 0.0.0.0:8080->80/tcp
 ```
 
 **11A.4. Verify Firewall Rules**
@@ -1582,7 +1629,7 @@ curl -I https://yourdomain.com
 ```bash
 # ✅ Checklist 1: Docker Containers Running
 docker ps
-# Expected: Semua container (laravel, svelte, postgres, redis, rabbitmq) harus "Up"
+# Expected: Semua container (laravel, postgres, redis, rabbitmq) harus "Up" dan "healthy"
 
 # ✅ Checklist 2: Nginx Running
 sudo systemctl status nginx
@@ -4523,50 +4570,109 @@ cd app038
 # cd app038
 
 # 5. Setup Environment
-# Jika .env.example ada, copy dari template
+# Copy .env.example ke .env
 if [ -f .env.example ]; then
     cp .env.example .env
+    echo "✅ .env created from .env.example"
 else
-    # Buat .env baru (lihat Step 4.2 untuk template lengkap)
-    touch .env
+    echo "⚠️ .env.example not found, creating .env from template"
+    # Create .env (see Step 4.1 for full template)
 fi
 
 # Generate APP_KEY manual (tidak perlu PHP/Composer)
-sed -i "s/APP_KEY=/APP_KEY=base64:$(openssl rand -base64 32)/" .env
+APP_KEY_VALUE=$(openssl rand -base64 32)
+sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
 
 # Generate passwords
-DB_PASS=$(openssl rand -base64 32)
-REDIS_PASS=$(openssl rand -base64 32)
-RABBITMQ_PASS=$(openssl rand -base64 32)
+DB_PASS=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+REDIS_PASS=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+RABBITMQ_PASS=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 
-# Update .env dengan passwords (jika belum di-set)
+# Update .env dengan passwords
 sed -i "s/DB_PASSWORD=$/DB_PASSWORD=${DB_PASS}/" .env
 sed -i "s/REDIS_PASSWORD=$/REDIS_PASSWORD=${REDIS_PASS}/" .env
 sed -i "s/RABBITMQ_PASSWORD=$/RABBITMQ_PASSWORD=${RABBITMQ_PASS}/" .env
 
-nano .env  # Review dan edit jika perlu
+# Update APP_URL (ganti dengan domain atau IP)
+read -p "Enter domain (or press Enter for IP 168.231.118.3): " DOMAIN
+if [ -z "$DOMAIN" ]; then
+    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=http://168.231.118.3|" .env
+else
+    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=https://$DOMAIN|" .env
+fi
 
-# 6. Create Network & Start Services
-docker network create app038_network
-docker-compose -f docker-compose.prod.yml up -d --build
+# 6. Install Node.js 20.x (for Vite build)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
-# 7. Run Migrations
-docker exec -it app038_laravel php artisan migrate --force
+# 7. Build Vite assets
+npm install
+npm run build
 
-# 8. Setup Nginx
+# 8. Create Network & Start Services
+docker network create app038_network 2>/dev/null || true
+docker-compose -f docker-compose.prod.yml build --no-cache laravel
+docker-compose -f docker-compose.prod.yml up -d
+
+# 9. Wait for containers
+echo "⏳ Waiting 30 seconds for containers to start..."
+sleep 30
+
+# 10. Setup Laravel
+docker exec app038_laravel php artisan key:generate --force
+docker exec app038_laravel php artisan migrate --force
+docker exec app038_laravel php artisan config:clear
+docker exec app038_laravel php artisan cache:clear
+docker exec app038_laravel php artisan config:cache
+docker exec app038_laravel php artisan route:cache
+
+# 11. Setup Nginx
 sudo apt install nginx -y
-sudo nano /etc/nginx/sites-available/app038  # Copy config dari Step 8.2
-sudo ln -s /etc/nginx/sites-available/app038 /etc/nginx/sites-enabled/
+sudo tee /etc/nginx/sites-available/app038 > /dev/null << 'NGINXEOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    location /health {
+        proxy_pass http://127.0.0.1:8080/health;
+        access_log off;
+    }
+}
+NGINXEOF
+
+sudo ln -sf /etc/nginx/sites-available/app038 /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 
-# 9. Setup SSL (jika punya domain)
-sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+# 12. Setup SSL (jika punya domain)
+read -p "Setup SSL? (y/n): " SETUP_SSL
+if [ "$SETUP_SSL" = "y" ]; then
+    sudo apt install certbot python3-certbot-nginx -y
+    read -p "Enter domain name: " DOMAIN_NAME
+    sudo certbot --nginx -d $DOMAIN_NAME -d www.$DOMAIN_NAME
+fi
 
-# 10. Verify
-curl http://168.231.118.3/health
-curl https://yourdomain.com/health
+# 13. Verify
+echo "=== Container Status ==="
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
+echo ""
+echo "=== Health Check ==="
+curl -s http://localhost:8080/health
+echo ""
+echo "=== Test via Nginx ==="
+curl -I http://localhost/health
+echo ""
+echo "✅ Test: http://168.231.118.3"
 ```
 
 **✅ Website sudah online!**
