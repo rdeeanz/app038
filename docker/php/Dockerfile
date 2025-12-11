@@ -174,7 +174,7 @@ EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost/up || exit 1
 
 # Start supervisor (manages PHP-FPM and Nginx)
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

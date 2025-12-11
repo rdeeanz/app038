@@ -6,7 +6,7 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 ---
 
-## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 10 December 2025, 18:00 UTC)
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 11 December 2025, 09:00 UTC)
 
 ### 📊 Status VPS Hostinger:
 | Item | Value |
@@ -85,9 +85,23 @@ Internet → Nginx (Host:80) → Laravel Container (8080:80) → PostgreSQL/Redi
 
 ### 🚨 LANGKAH SELANJUTNYA (WAJIB DILAKUKAN):
 
-**Status saat ini:** Semua fix sudah di-commit dan push ke repository. **Langkah selanjutnya adalah setup environment variables dan rebuild container di VPS dengan fix yang sudah ada.**
+**Status saat ini:** Semua fix sudah di-commit dan push ke repository. Health endpoint sudah dikonfigurasi di `/up` (bukan `/health`). **Langkah selanjutnya adalah setup environment variables dan rebuild container di VPS dengan fix yang sudah ada.**
 
-**📋 Quick Start untuk Ubuntu 24.04:**
+### ⚠️ PENTING - Health Endpoint Update:
+**Health endpoint sudah berubah dari `/health` ke `/up`** (sesuai Laravel 11 standard). Update semua script dan konfigurasi Nginx untuk menggunakan `/up` sebagai health check endpoint.
+
+**📋 COMPLETE AUTOMATED DEPLOYMENT:**
+
+**🚀 ONE-COMMAND DEPLOYMENT** - Jalankan script otomatis yang sudah disiapkan:
+
+```bash
+# Download dan jalankan script deployment otomatis
+wget https://raw.githubusercontent.com/rdeeanz/app038/main/deploy-hostinger-complete.sh
+chmod +x deploy-hostinger-complete.sh
+sudo ./deploy-hostinger-complete.sh
+```
+
+**Atau manual step-by-step - Quick Start untuk Ubuntu 24.04:**
 
 ```bash
 # ========================================
@@ -155,7 +169,7 @@ docker exec app038_laravel php artisan route:cache
 
 # Step 11: Verify
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
-curl -s http://localhost:8080/health
+curl -s http://localhost:8080/up
 echo "✅ Test: http://168.231.118.3"
 ```
 
@@ -203,7 +217,7 @@ docker exec app038_laravel php artisan config:cache
 docker exec app038_laravel php artisan route:cache
 
 # Step 10: Test
-curl -s http://localhost:8080/health
+curl -s http://localhost:8080/up
 curl -I http://localhost:8080/
 curl -I http://localhost/
 
@@ -228,7 +242,7 @@ docker exec app038_laravel php artisan config:clear && \
 docker exec app038_laravel php artisan cache:clear && \
 docker exec app038_laravel php artisan config:cache && \
 docker exec app038_laravel php artisan route:cache && \
-curl -s http://localhost:8080/health && \
+curl -s http://localhost:8080/up && \
 echo "" && \
 curl -I http://localhost:8080/ && \
 echo "✅ Test: http://168.231.118.3"
@@ -4700,3 +4714,85 @@ echo "✅ Test: http://168.231.118.3"
 - **SSH:** `ssh root@168.231.118.3`
 - **Website (setelah deploy):** `http://168.231.118.3` atau `https://yourdomain.com`
 - **Health Check:** `http://168.231.118.3/health`
+
+---
+
+## 🎯 RINGKASAN DEPLOYMENT
+
+### ✅ Status Akhir Deployment
+
+**Semua kode dan konfigurasi sudah diupdate dan siap untuk deployment:**
+
+1. **✅ Health Endpoint**: Sudah diupdate dari `/health` ke `/up` (Laravel 11 standard)
+2. **✅ Docker Configuration**: Semua container sudah dikonfigurasi dengan benar
+3. **✅ Environment Variables**: Template `.env.example` sudah lengkap
+4. **✅ Vite Assets**: Build configuration sudah optimal
+5. **✅ Database**: PostgreSQL, Redis, RabbitMQ sudah dikonfigurasi
+6. **✅ Nginx**: Reverse proxy configuration sudah siap
+7. **✅ SSL**: Let's Encrypt integration sudah tersedia
+8. **✅ Auto-start**: Systemd service sudah dikonfigurasi
+
+### 🚀 Cara Deploy
+
+**Pilihan 1: Automated Script (Recommended)**
+```bash
+# SSH ke VPS Hostinger
+ssh root@168.231.118.3
+
+# Download dan jalankan script otomatis
+wget https://raw.githubusercontent.com/rdeeanz/app038/main/deploy-hostinger-complete.sh
+chmod +x deploy-hostinger-complete.sh
+sudo ./deploy-hostinger-complete.sh
+```
+
+**Pilihan 2: Manual Step-by-Step**
+- Ikuti panduan lengkap di dokumen ini mulai dari Step 0
+
+### 🌐 Akses Website
+
+Setelah deployment selesai, website bisa diakses di:
+- **Via IP**: http://168.231.118.3
+- **Via Domain**: https://vibeapps.cloud (setelah DNS pointing dan SSL setup)
+
+### 📋 File Penting
+
+- **Passwords**: `/root/app038-passwords.txt`
+- **Nginx Config**: `/etc/nginx/sites-available/app038`
+- **Application**: `/var/www/app038`
+- **Environment**: `/var/www/app038/.env`
+
+### 🔧 Maintenance Commands
+
+```bash
+# Check container status
+docker ps
+
+# View application logs
+docker logs app038_laravel -f
+
+# Restart services
+sudo systemctl restart app038
+
+# Check Nginx status
+sudo systemctl status nginx
+
+# Update application
+cd /var/www/app038
+git pull origin main
+docker-compose -f docker-compose.prod.yml build --no-cache
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### 🆘 Support
+
+Jika ada masalah:
+1. Check container logs: `docker logs app038_laravel`
+2. Check Nginx logs: `sudo tail -f /var/log/nginx/app038-error.log`
+3. Verify health endpoint: `curl http://localhost/up`
+4. Check firewall: `sudo ufw status`
+
+---
+
+**🎉 DEPLOYMENT READY!** 
+
+Semua kode sudah diupdate dan siap untuk deployment ke VPS Hostinger. Jalankan script otomatis atau ikuti panduan manual untuk deploy website Anda.
