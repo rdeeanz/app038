@@ -6,7 +6,7 @@ Panduan lengkap untuk mendeploy aplikasi App038 ke VPS Hostinger secara manual m
 
 ---
 
-## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 11 December 2025, 15:30 UTC)
+## 🔴 STATUS DEPLOYMENT SAAT INI (Update: 11 December 2025, 16:45 UTC)
 
 ### 📊 Status VPS Hostinger:
 | Item | Value |
@@ -90,114 +90,172 @@ Internet → Nginx (Host:80) → Laravel Container (8080:80) → PostgreSQL/Redi
 - ✅ **Health endpoint** sudah dikonfigurasi di `/up` (Laravel 11 standard)
 - ✅ **Docker configuration** sudah complete dengan 4 services
 - ✅ **Environment template** sudah lengkap di `.env.example`
+- ✅ **Environment production** sudah dikonfigurasi di `.env`
 - ✅ **Deployment script** sudah siap di `deploy-hostinger-complete.sh`
 - ✅ **VPS Hostinger** sudah terverifikasi dan siap (IP: 168.231.118.3)
+
+**Status Environment Variables:**
+- ✅ **APP_ENV=production** - Sudah dikonfigurasi untuk production
+- ✅ **APP_DEBUG=false** - Debug mode dimatikan untuk security
+- ✅ **APP_URL=http://168.231.118.3** - URL sudah sesuai dengan IP VPS
+- ✅ **Database hosts** - Menggunakan service names (postgres, redis, rabbitmq)
+- ⚠️ **Passwords** - Akan di-generate otomatis saat deployment
 
 **Langkah selanjutnya:** Jalankan deployment script otomatis atau ikuti panduan manual.
 
 ### ⚠️ PENTING - Health Endpoint Update:
 **Health endpoint sudah berubah dari `/health` ke `/up`** (sesuai Laravel 11 standard). Update semua script dan konfigurasi Nginx untuk menggunakan `/up` sebagai health check endpoint.
 
-**📋 COMPLETE AUTOMATED DEPLOYMENT:**
+## 🎯 LANGKAH DEPLOYMENT SELANJUTNYA
+
+### **📋 COMPLETE AUTOMATED DEPLOYMENT (RECOMMENDED):**
 
 **🚀 ONE-COMMAND DEPLOYMENT** - Jalankan script otomatis yang sudah disiapkan:
 
 ```bash
-# SSH ke VPS Hostinger
+# 1. SSH ke VPS Hostinger
 ssh root@168.231.118.3
 
-# Download dan jalankan script deployment otomatis
+# 2. Download dan jalankan script deployment otomatis
 wget https://raw.githubusercontent.com/rdeeanz/app038/main/deploy-hostinger-complete.sh
 chmod +x deploy-hostinger-complete.sh
 sudo ./deploy-hostinger-complete.sh
 
-# Script akan otomatis:
-# 1. Install Docker & Docker Compose
-# 2. Setup firewall (UFW)
-# 3. Clone repository dengan authentication
-# 4. Generate secure passwords dan APP_KEY
-# 5. Install Node.js dan build Vite assets
-# 6. Build dan start Docker containers
-# 7. Setup database migrations
-# 8. Configure Nginx reverse proxy
-# 9. Setup SSL certificate (opsional)
-# 10. Configure auto-start systemd service
-# 11. Verify deployment
+# ATAU jika sudah ada project di VPS, jalankan dari directory project:
+cd /var/www/app038
+sudo ./deploy-hostinger-complete.sh
 
-# Estimasi waktu: 15-30 menit
-# Website akan accessible di: http://168.231.118.3
+# Script akan otomatis melakukan:
+# ✅ 1. Install Docker & Docker Compose
+# ✅ 2. Setup firewall (UFW) - port 22, 80, 443
+# ✅ 3. Clone repository dengan authentication (HTTPS/SSH)
+# ✅ 4. Generate secure passwords dan APP_KEY
+# ✅ 5. Install Node.js 20.x dan build Vite assets
+# ✅ 6. Build dan start Docker containers (Laravel, PostgreSQL, Redis, RabbitMQ)
+# ✅ 7. Setup database migrations
+# ✅ 8. Configure Nginx reverse proxy
+# ✅ 9. Setup SSL certificate dengan Let's Encrypt (opsional)
+# ✅ 10. Configure auto-start systemd service
+# ✅ 11. Verify deployment dan health checks
+
+# ⏱️ Estimasi waktu: 15-30 menit
+# 🌐 Website akan accessible di: http://168.231.118.3
+# 🔒 Dengan SSL (jika domain): https://yourdomain.com
 ```
 
-**Atau manual step-by-step - Quick Start untuk Ubuntu 24.04:**
+### **📋 MANUAL DEPLOYMENT (Step-by-Step):**
+
+**Jika ingin deployment manual atau troubleshooting - Quick Start untuk Ubuntu 24.04:**
 
 ```bash
 # ========================================
-# COMPLETE DEPLOYMENT SCRIPT - Ubuntu 24.04
+# MANUAL DEPLOYMENT COMMANDS - Ubuntu 24.04
 # ========================================
+
+# 0. SSH ke VPS dan setup basic
+ssh root@168.231.118.3
+apt update -y
+apt install -y curl wget git unzip
+
+# 1. Install Docker & Docker Compose
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# 2. Setup firewall
+sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
+sudo ufw --force enable
+
+# 3. Clone repository
+mkdir -p /var/www && cd /var/www
+# Pilih salah satu method authentication:
+# Method A: HTTPS dengan Personal Access Token
+git clone https://YOUR_TOKEN@github.com/rdeeanz/app038.git
+# Method B: SSH (setup SSH key dulu)
+# git clone git@github.com:rdeeanz/app038.git
+
 cd /var/www/app038
 
-# Step 1: Pull latest changes
-git pull origin main
+# 4. Setup .env file (sudah dikonfigurasi untuk production)
+# File .env sudah dikonfigurasi dengan:
+# - APP_ENV=production
+# - APP_DEBUG=false  
+# - APP_URL=http://168.231.118.3
+# - Service names untuk Docker (postgres, redis, rabbitmq)
 
-# Step 2: Setup .env file
-if [ -f .env.example ]; then
-    cp .env.example .env
-else
-    echo "⚠️ .env.example not found, creating .env from template"
-    # Create .env (see Step 4.1 for full template)
-fi
-
-# Step 3: Generate secure passwords
+# 5. Generate secure passwords dan update .env
 DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 RABBITMQ_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 
-# Update .env
+# Update passwords di .env
 sed -i "s/DB_PASSWORD=$/DB_PASSWORD=$DB_PASSWORD/" .env
 sed -i "s/REDIS_PASSWORD=$/REDIS_PASSWORD=$REDIS_PASSWORD/" .env
 sed -i "s/RABBITMQ_PASSWORD=$/RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD/" .env
 
-# Step 4: Generate APP_KEY
-APP_KEY_VALUE=$(openssl rand -base64 32)
-sed -i "s/APP_KEY=$/APP_KEY=base64:${APP_KEY_VALUE}/" .env
+# Save passwords securely
+echo "DB_PASSWORD: $DB_PASSWORD" > /root/app038-passwords.txt
+echo "REDIS_PASSWORD: $REDIS_PASSWORD" >> /root/app038-passwords.txt
+echo "RABBITMQ_PASSWORD: $RABBITMQ_PASSWORD" >> /root/app038-passwords.txt
+chmod 600 /root/app038-passwords.txt
 
-# Step 5: Update APP_URL (ganti dengan domain atau IP Anda)
-read -p "Enter domain (or press Enter for IP): " DOMAIN
-if [ -z "$DOMAIN" ]; then
-    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=http://168.231.118.3|" .env
-else
-    sed -i "s|APP_URL=https://yourdomain.com|APP_URL=https://$DOMAIN|" .env
-fi
+# Update APP_URL jika perlu (sudah di-set ke IP VPS)
+# Jika ingin gunakan domain:
+# read -p "Enter domain (or press Enter for IP): " DOMAIN
+# if [ ! -z "$DOMAIN" ]; then
+#     sed -i "s|APP_URL=http://168.231.118.3|APP_URL=https://$DOMAIN|" .env
+# fi
 
-# Step 6: Install Node.js 20.x (for Vite build)
+# 6. Install Node.js 20.x dan build Vite assets
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
-
-# Step 7: Build Vite assets
 npm install
 npm run build
 
-# Step 8: Stop and rebuild containers
-docker-compose -f docker-compose.prod.yml down
-docker-compose -f docker-compose.prod.yml build --no-cache laravel
+# 7. Create Docker network dan build containers
+docker network create app038_network 2>/dev/null || true
+docker-compose -f docker-compose.prod.yml build --no-cache
 docker-compose -f docker-compose.prod.yml up -d
 
-# Step 9: Wait for containers
+# 8. Wait for containers dan setup Laravel
 echo "⏳ Waiting 30 seconds for containers to start..."
 sleep 30
-
-# Step 10: Setup Laravel
-docker exec app038_laravel php artisan key:generate --force
 docker exec app038_laravel php artisan migrate --force
 docker exec app038_laravel php artisan config:clear
 docker exec app038_laravel php artisan cache:clear
 docker exec app038_laravel php artisan config:cache
 docker exec app038_laravel php artisan route:cache
 
-# Step 11: Verify
+# 9. Setup Nginx reverse proxy
+sudo apt install nginx -y
+sudo tee /etc/nginx/sites-available/app038 > /dev/null << 'NGINXEOF'
+server {
+    listen 80;
+    server_name _;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /up {
+        proxy_pass http://127.0.0.1:8080/up;
+        access_log off;
+    }
+}
+NGINXEOF
+
+sudo ln -sf /etc/nginx/sites-available/app038 /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+
+# 10. Verify deployment
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep app038
 curl -s http://localhost:8080/up
-echo "✅ Test: http://168.231.118.3"
+curl -s http://localhost/up
+echo "✅ Website accessible at: http://168.231.118.3"
 ```
 
 **Jalankan perintah berikut di VPS Hostinger:**
@@ -275,24 +333,37 @@ curl -I http://localhost:8080/ && \
 echo "✅ Test: http://168.231.118.3"
 ```
 
-### ✅ Setelah Fix Berhasil:
+### ✅ Setelah Deployment Berhasil:
 
-Website akan bisa diakses di:
+**Website akan bisa diakses di:**
 - **Via IP:** http://168.231.118.3
-- **Via Domain:** http://vibeapps.cloud (jika DNS sudah pointing)
+- **Via Domain:** https://vibeapps.cloud (setelah DNS pointing dan SSL setup)
 
-### 🔐 Setup SSL (Setelah Website Berjalan):
+### 🔐 Setup SSL dengan Let's Encrypt (Opsional):
+
+**Jika Anda memiliki domain name:**
 
 ```bash
-# Install Certbot
+# 1. Update DNS records di domain provider:
+# A Record: @ → 168.231.118.3
+# A Record: www → 168.231.118.3
+
+# 2. Wait for DNS propagation (5-30 menit)
+dig +short yourdomain.com  # Should return: 168.231.118.3
+
+# 3. Install Certbot dan setup SSL
 sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 
-# Get SSL Certificate
-sudo certbot --nginx -d vibeapps.cloud -d www.vibeapps.cloud
-
-# Test auto-renewal
+# 4. Test auto-renewal
 sudo certbot renew --dry-run
+
+# 5. Update Nginx config untuk redirect HTTP ke HTTPS (otomatis oleh Certbot)
 ```
+
+**Setelah SSL setup, website akan accessible di:**
+- **HTTP (redirect ke HTTPS):** http://yourdomain.com → https://yourdomain.com
+- **HTTPS:** https://yourdomain.com
 
 ---
 
@@ -4327,12 +4398,13 @@ find /var/backups/app038 -type f -mtime +30 -delete
 - [ ] Personal Access Token (PAT) sudah dibuat di GitHub (jika menggunakan HTTPS)
 - [ ] SSH key sudah ditambahkan ke GitHub (jika menggunakan SSH)
 - [ ] Repository sudah di-clone ke `/var/www/app038`
-- [ ] `.env` file sudah dibuat (dari .env.example atau template manual)
-- [ ] `.env` file sudah dikonfigurasi dengan benar
-- [ ] APP_KEY sudah di-generate
-- [ ] Database password sudah di-generate dan di-set
-- [ ] Redis password sudah di-generate dan di-set
-- [ ] RabbitMQ password sudah di-generate dan di-set
+- [x] ✅ `.env` file sudah dikonfigurasi untuk production
+- [x] ✅ `APP_ENV=production` dan `APP_DEBUG=false` sudah di-set
+- [x] ✅ `APP_URL=http://168.231.118.3` sudah sesuai dengan IP VPS
+- [x] ✅ Database hosts menggunakan service names (postgres, redis, rabbitmq)
+- [ ] Database password sudah di-generate dan di-set (akan otomatis saat deployment)
+- [ ] Redis password sudah di-generate dan di-set (akan otomatis saat deployment)
+- [ ] RabbitMQ password sudah di-generate dan di-set (akan otomatis saat deployment)
 
 ### Docker Services
 - [ ] Docker network `app038_network` sudah dibuat
