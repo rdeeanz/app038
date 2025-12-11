@@ -99,7 +99,7 @@
                     Mapping Editor
                 </Link>
 
-                {#if user.roles && user.roles.some(role => role.name === 'Super Admin')}
+                {#if user.roles && user.roles.some(role => role.name === 'super-admin')}
                     <!-- Settings Menu with Sub Menu -->
                     <div>
                         <button

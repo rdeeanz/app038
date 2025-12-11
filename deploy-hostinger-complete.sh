@@ -189,7 +189,7 @@ APP_KEY="base64:${APP_KEY_VALUE}"
 sed -i "s/DB_PASSWORD=$/DB_PASSWORD=$DB_PASSWORD/" .env
 sed -i "s/REDIS_PASSWORD=$/REDIS_PASSWORD=$REDIS_PASSWORD/" .env
 sed -i "s/RABBITMQ_PASSWORD=$/RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD/" .env
-sed -i "s/APP_KEY=$/APP_KEY=$APP_KEY/" .env
+sed -i "s|APP_KEY=$|APP_KEY=$APP_KEY|" .env
 
 # Update APP_URL
 read -p "Enter your domain name (or press Enter to use IP 168.231.118.3): " domain_name
